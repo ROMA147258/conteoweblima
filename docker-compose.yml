@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5181:5181"
+    environment:
+      - PORT=5181
+      - DB_SERVER=host.docker.internal
+      - DB_DATABASE=conteo
+      - DB_USER=data
+      - DB_PASSWORD=TECNOlogia2026.$
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3180:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
