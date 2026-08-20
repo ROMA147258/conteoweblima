@@ -4,7 +4,7 @@ const config = require('./config/environment');
 const corsMiddleware = require('./interfaces/middleware/corsMiddleware');
 const errorHandler = require('./interfaces/middleware/errorHandler');
 const createApiRouter = require('./interfaces/routes');
-const { getPool } = require('./infrastructure/database/sqlServerPool');
+const { getPool } = require('./infrastructure/database/postgresPool');
 
 const app = express();
 
@@ -33,7 +33,7 @@ app.get('*', (req, res, next) => {
           <body style="font-family:sans-serif;text-align:center;padding:50px;">
             <h2>🗳️ Voto Real Lima - Servidor API Activo</h2>
             <p>Backend ejecutándose en puerto <strong>${config.port}</strong></p>
-            <p>Frontend disponible en <a href="http://localhost:3180">http://localhost:3180</a></p>
+            <p>Conectado a Base de Datos: <strong>PostgreSQL (Neon)</strong></p>
           </body>
         </html>
       `);
@@ -44,19 +44,19 @@ app.get('*', (req, res, next) => {
 // Middleware centralizado de errores
 app.use(errorHandler);
 
-// Arrancar servidor y probar conexión a SQL Server
-const server = app.listen(config.port, '0.0.0.0', async () => {
+// Arrancar servidor y probar conexión a PostgreSQL
+const server = app.listen(config.port, '0.0.0.0', () => {
   console.log('\n======================================================');
-  console.log(`🗳️  VOTO REAL LIMA - BACKEND API`);
+  console.log(`🗳️  VOTO REAL LIMA - BACKEND API (PostgreSQL / Neon)`);
   console.log(`📡  Puerto: ${config.port}`);
   console.log(`🌍  Endpoint Base: http://localhost:${config.port}/api`);
   console.log(`❤️   Health Check:  http://localhost:${config.port}/api/health`);
   console.log('======================================================\n');
 
   try {
-    await getPool();
+    getPool();
   } catch (e) {
-    console.warn('⚠️  Nota: La conexión inicial a SQL Server falló. Se reintentará en cada solicitud.');
+    console.warn('⚠️  Nota: Conexión a PostgreSQL falló. Se reintentará en cada solicitud.');
   }
 });
 

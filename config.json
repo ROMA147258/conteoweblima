@@ -1,6 +1,0 @@
-{
-  "apiUrl": "/api/voto-real",
-  "dbServer": "localhost",
-  "dbName": "conteo",
-  "syncIntervalMinutes": 5
-}

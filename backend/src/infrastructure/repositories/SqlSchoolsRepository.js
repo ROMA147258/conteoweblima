@@ -1,23 +1,25 @@
-const { getPool, mssql } = require('../database/sqlServerPool');
+const { query } = require('../database/postgresPool');
 
 class SqlSchoolsRepository {
   async getAllSchools(filter = {}) {
-    const pool = await getPool();
-    const req = pool.request();
-
     let where = [];
+    let params = [];
+    let paramIndex = 1;
+
     if (filter.distrito && filter.distrito !== 'todos' && filter.distrito !== 'LIMA') {
-      where.push('LTRIM(RTRIM(LOWER(distrito))) = LTRIM(RTRIM(LOWER(@distrito)))');
-      req.input('distrito', mssql.VarChar, filter.distrito);
+      where.push(`TRIM(LOWER(distrito)) = TRIM(LOWER($${paramIndex}))`);
+      params.push(filter.distrito);
+      paramIndex++;
     }
     if (filter.provincia && filter.provincia !== 'todas' && filter.provincia !== 'Lima') {
-      where.push('LTRIM(RTRIM(LOWER(provincia))) = LTRIM(RTRIM(LOWER(@provincia)))');
-      req.input('provincia', mssql.VarChar, filter.provincia);
+      where.push(`TRIM(LOWER(provincia)) = TRIM(LOWER($${paramIndex}))`);
+      params.push(filter.provincia);
+      paramIndex++;
     }
 
     const whereStr = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
-    const query = `
+    const sql = `
       SELECT 
         id,
         ubigeo,
@@ -26,51 +28,55 @@ class SqlSchoolsRepository {
         distrito,
         colegio,
         direccion,
-        ISNULL(num_mesas, 0) AS num_mesas,
+        COALESCE(num_mesas, 0)::int AS num_mesas,
         latitud,
         longitud,
         coordenadas_gps,
         radio_metros,
         estado
-      FROM dbo.Colegios
+      FROM colegios
       ${whereStr}
       ORDER BY distrito ASC, colegio ASC
     `;
 
-    const res = await req.query(query);
-    return res.recordset || [];
+    try {
+      const res = await query(sql, params);
+      return res.rows || [];
+    } catch (_) {
+      return [];
+    }
   }
 
   async getMapAggregates(filter = {}) {
-    const pool = await getPool();
-    
-    // Obtener colegios con coordenadas válidas
     const schools = await this.getAllSchools(filter);
 
-    // Obtener mesas escrutadas y votos por colegio/distrito
-    const votesQuery = `
-      SELECT 
-        ubicacion AS distrito,
-        colegio,
-        COUNT(DISTINCT numero_mesa) AS mesas_escrutadas,
-        SUM(p_total_votos + d_total_votos) AS total_votos,
-        SUM(p_fp_votos + d_fp_votos) AS FP,
-        SUM(p_jp_votos + d_jp_votos) AS JP,
-        SUM(p_sp_votos + d_sp_votos) AS SP,
-        SUM(p_frepap_votos + d_frepap_votos) AS FREPAP,
-        SUM(p_verde_votos + d_verde_votos) AS VERDE,
-        SUM(p_morado_votos + d_morado_votos) AS MORADO,
-        SUM(p_nulos + d_nulos) AS NULOS,
-        SUM(p_vacios + d_vacios) AS VACIOS
-      FROM dbo.Votos_Detalle
-      GROUP BY ubicacion, colegio
-    `;
+    let votesRows = [];
+    try {
+      const votesQuery = `
+        SELECT 
+          ubicacion AS distrito,
+          colegio,
+          COUNT(DISTINCT numero_mesa)::int AS mesas_escrutadas,
+          COALESCE(SUM(p_total_votos + d_total_votos), 0)::int AS total_votos,
+          COALESCE(SUM(p_fp_votos + d_fp_votos), 0)::int AS "FP",
+          COALESCE(SUM(p_jp_votos + d_jp_votos), 0)::int AS "JP",
+          COALESCE(SUM(p_sp_votos + d_sp_votos), 0)::int AS "SP",
+          COALESCE(SUM(p_frepap_votos + d_frepap_votos), 0)::int AS "FREPAP",
+          COALESCE(SUM(p_verde_votos + d_verde_votos), 0)::int AS "VERDE",
+          COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MORADO",
+          COALESCE(SUM(p_nulos + d_nulos), 0)::int AS "NULOS",
+          COALESCE(SUM(p_vacios + d_vacios), 0)::int AS "VACIOS"
+        FROM votos_detalle
+        GROUP BY ubicacion, colegio
+      `;
+      const votesRes = await query(votesQuery);
+      votesRows = votesRes.rows || [];
+    } catch (_) {}
 
-    const votesRes = await pool.request().query(votesQuery);
     const votesMap = {};
     const districtSummary = {};
 
-    (votesRes.recordset || []).forEach(r => {
+    votesRows.forEach(r => {
       const colKey = `${(r.distrito || '').trim().toUpperCase()}_${(r.colegio || '').trim().toUpperCase()}`;
       votesMap[colKey] = r;
 
@@ -95,7 +101,6 @@ class SqlSchoolsRepository {
       districtSummary[distKey].votosPorPartido.VACIOS += r.VACIOS || 0;
     });
 
-    // Mapear colegios con datos de resultados
     const schoolsWithData = schools.map(s => {
       const colKey = `${(s.distrito || '').trim().toUpperCase()}_${(s.colegio || '').trim().toUpperCase()}`;
       const vData = votesMap[colKey];
@@ -123,9 +128,11 @@ class SqlSchoolsRepository {
       };
     });
 
-    // Totales de mesas esperadas
-    const totalExpectedMesasRes = await pool.request().query('SELECT SUM(num_mesas) AS total_mesas FROM dbo.Colegios');
-    const totalExpectedMesas = totalExpectedMesasRes.recordset[0]?.total_mesas || 3648;
+    let totalExpectedMesas = 3648;
+    try {
+      const totalExpectedMesasRes = await query('SELECT COALESCE(SUM(num_mesas), 3648)::int AS total_mesas FROM colegios');
+      totalExpectedMesas = totalExpectedMesasRes.rows[0]?.total_mesas || 3648;
+    } catch (_) {}
 
     return {
       colegios: schoolsWithData,

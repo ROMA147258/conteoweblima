@@ -9,8 +9,8 @@ cd /d "%~dp0"
 echo.
 echo  ======================================================
 echo         VOTO REAL - SISTEMA ELECTORAL LIMA
-echo         Arquitectura Frontend (React) + Backend (Node)
-echo         SQL Server 2022 - Base de Datos: conteo
+echo         Frontend (React/Vite) + Backend (Node.js)
+echo         Base de Datos: PostgreSQL (Neon Cloud)
 echo  ======================================================
 echo.
 
@@ -50,24 +50,24 @@ if not exist "frontend\node_modules\" (
   echo.
 )
 
-:: Liberar puertos 5181 y 5174 si estaban ocupados
-echo  Verificando puertos 5181 y 5174...
-powershell -Command "Get-NetTCPConnection -LocalPort 5181,5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>nul
+:: Liberar puertos 5182 y 5174 si estaban ocupados
+echo  Verificando puertos 5182 y 5174...
+powershell -Command "Get-NetTCPConnection -LocalPort 5182,5174 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>nul
 
 echo.
 echo  ======================================================
-echo   Iniciando Backend en:  http://localhost:5181
+echo   Iniciando Backend en:  http://localhost:5182
 echo   Iniciando Frontend en: http://localhost:5174
 echo.
 echo   Usuario Admin: admin
-echo   Contraseña:    admin2026
+echo   Contraseña:    admin2024
 echo.
 echo   Presiona Ctrl+C o cierra esta ventana para detener.
 echo  ======================================================
 echo.
 
 :: Iniciar Backend en segundo plano
-start "Voto Real - Backend API" /min cmd /c "cd /d "%~dp0backend" && node src/server.js"
+start "Voto Real - Backend API" /min cmd /c "cd /d "%~dp0backend" && npm start"
 
 :: Abrir navegador en el Frontend tras 2 segundos
 start "" cmd /c "ping -n 3 127.0.0.1 >nul & start http://localhost:5174"

@@ -1,52 +1,61 @@
-const { getPool, mssql } = require('../database/sqlServerPool');
+const { query } = require('../database/postgresPool');
 
 class SqlUserRepository {
   async findByDniOrName(dni, name) {
-    const pool = await getPool();
     const rawDni = (dni || '').trim();
     const rawName = (name || '').trim();
 
     if (!rawDni && !rawName) return null;
 
-    let req = pool.request();
     let whereClause = '';
+    const params = [];
 
     if (rawDni && rawName) {
-      whereClause = 'dni = @dni AND nombre LIKE @nombre';
-      req.input('dni', mssql.VarChar, rawDni);
-      req.input('nombre', mssql.VarChar, `%${rawName}%`);
+      params.push(rawDni, `%${rawName}%`);
+      whereClause = 'dni ILIKE $1 AND nombre ILIKE $2';
     } else if (rawDni) {
-      whereClause = 'dni = @dni';
-      req.input('dni', mssql.VarChar, rawDni);
+      params.push(rawDni);
+      whereClause = 'dni ILIKE $1';
     } else {
-      whereClause = 'nombre LIKE @nombre';
-      req.input('nombre', mssql.VarChar, `%${rawName}%`);
+      params.push(`%${rawName}%`);
+      whereClause = 'nombre ILIKE $1';
     }
 
-    // 1. Buscar en Usuarios (Personeros)
-    let res = await req.query(`SELECT TOP 1 * FROM dbo.Usuarios WHERE ${whereClause}`);
-    if (res.recordset.length > 0) {
-      const u = res.recordset[0];
-      u.origenHoja = 'Usuarios';
-      return u;
-    }
+    try {
+      // 1. Buscar en usuarios
+      let res = await query(`SELECT * FROM usuarios WHERE ${whereClause} LIMIT 1`, params);
+      if (res.rows.length > 0) {
+        const u = res.rows[0];
+        u.origenHoja = 'Usuarios';
+        return u;
+      }
 
-    // 2. Buscar en Usuarios1 (Coordinadores)
-    req = pool.request();
-    if (rawDni && rawName) {
-      req.input('dni', mssql.VarChar, rawDni);
-      req.input('nombre', mssql.VarChar, `%${rawName}%`);
-    } else if (rawDni) {
-      req.input('dni', mssql.VarChar, rawDni);
-    } else {
-      req.input('nombre', mssql.VarChar, `%${rawName}%`);
-    }
+      // 2. Buscar en usuarios1
+      res = await query(`SELECT * FROM usuarios1 WHERE ${whereClause} LIMIT 1`, params);
+      if (res.rows.length > 0) {
+        const u = res.rows[0];
+        u.origenHoja = 'Usuarios1';
+        return u;
+      }
 
-    res = await req.query(`SELECT TOP 1 * FROM dbo.Usuarios1 WHERE ${whereClause}`);
-    if (res.recordset.length > 0) {
-      const u = res.recordset[0];
-      u.origenHoja = 'Usuarios1';
-      return u;
+      // 3. Buscar en rpersoneros
+      if (rawDni) {
+        res = await query(`
+          SELECT 
+            dni, 
+            nombres_y_apellidos AS nombre, 
+            'Personero' AS rol, 
+            COALESCE(NULLIF(distrito_asignado, ''), distrito_donde_vota) AS ubicacion, 
+            COALESCE(NULLIF(local_de_votacion_asignado, ''), local_de_votacion) AS colegio, 
+            COALESCE(NULLIF(mesa_asignada, ''), mesa_de_sufragio) AS mesa, 
+            'Rpersoneros' AS "origenHoja"
+          FROM rpersoneros
+          WHERE dni ILIKE $1 LIMIT 1
+        `, [rawDni]);
+        if (res.rows.length > 0) return res.rows[0];
+      }
+    } catch (e) {
+      console.warn('[UserRepository Error]:', e.message);
     }
 
     return null;

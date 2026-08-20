@@ -11,10 +11,10 @@ class LoginUseCase {
       throw new Error('Debe proporcionar usuario y contraseña');
     }
 
-    // 1. Acceso de Administrador
+    // 1. Acceso de Administrador (definido en .env)
     if (
       username.trim() === config.auth.adminUser &&
-      (password.trim() === config.auth.adminPass || password.trim() === 'admin2026' || password.trim() === 'admin2024')
+      password.trim() === config.auth.adminPass
     ) {
       const token = TokenService.generateToken({
         role: 'admin',

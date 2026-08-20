@@ -1,4 +1,4 @@
-const { getPool } = require('../../infrastructure/database/sqlServerPool');
+const { getPool, query } = require('../../infrastructure/database/postgresPool');
 const config = require('../../config/environment');
 
 class HealthCheckUseCase {
@@ -8,19 +8,16 @@ class HealthCheckUseCase {
     let tableStats = {};
 
     try {
-      const pool = await getPool();
-      if (pool && pool.connected) {
-        dbStatus = 'connected';
-        const res = await pool.request().query(`
-          SELECT 
-            (SELECT COUNT(*) FROM dbo.Votos_Detalle) AS votos,
-            (SELECT COUNT(*) FROM dbo.Colegios) AS colegios,
-            (SELECT COUNT(*) FROM dbo.Usuarios) AS usuarios,
-            (SELECT COUNT(*) FROM dbo.Usuarios1) AS coordinadores,
-            (SELECT COUNT(*) FROM dbo.Asistencia) AS asistencia
-        `);
-        tableStats = res.recordset[0] || {};
-      }
+      const res = await query(`
+        SELECT 
+          (SELECT COUNT(*) FROM votos_detalle) AS votos,
+          (SELECT COUNT(*) FROM colegios) AS colegios,
+          (SELECT COUNT(*) FROM usuarios) AS usuarios,
+          (SELECT COUNT(*) FROM usuarios1) AS coordinadores,
+          (SELECT COUNT(*) FROM asistencia) AS asistencia
+      `);
+      dbStatus = 'connected';
+      tableStats = res.rows[0] || {};
     } catch (err) {
       dbStatus = 'error';
       dbError = err.message;
@@ -37,6 +34,7 @@ class HealthCheckUseCase {
       database: {
         server: config.db.server,
         database: config.db.database,
+        type: 'PostgreSQL (Neon)',
         status: dbStatus,
         error: dbError,
         tableStats
