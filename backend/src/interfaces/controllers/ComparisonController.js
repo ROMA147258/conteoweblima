@@ -7,16 +7,16 @@ class ComparisonController {
     try {
       const filterA = {
         level: req.query.levelA || 'distrito',
-        location: req.query.locationA || 'Ate',
+        location: req.query.locationA || '',
         votoTipo: req.query.votoTipoA || 'todos',
-        origenFilter: req.query.origenA || ''
+        origen: req.query.origenA || req.query.origenFilterA || ''
       };
 
       const filterB = {
         level: req.query.levelB || 'distrito',
-        location: req.query.locationB || 'San Juan de Lurigancho',
+        location: req.query.locationB || '',
         votoTipo: req.query.votoTipoB || 'todos',
-        origenFilter: req.query.origenB || ''
+        origen: req.query.origenB || req.query.origenFilterB || ''
       };
 
       const data = await this.getComparisonUseCase.execute({ filterA, filterB });

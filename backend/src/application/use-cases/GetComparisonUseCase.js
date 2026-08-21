@@ -37,14 +37,39 @@ class GetComparisonUseCase {
     const brechaAbsoluta = Math.abs(totalA - totalB);
     const variacionPct = totalA > 0 ? (((totalB - totalA) / totalA) * 100).toFixed(1) : '0.0';
 
+    const getLeader = (side, total) => {
+      const partyCandidates = [
+        { key: 'FP', label: 'Fuerza Popular', votes: side.FP || 0 },
+        { key: 'JP', label: 'Juntos por el Perú', votes: side.JP || 0 },
+        { key: 'SOMOS PERU', label: 'Somos Perú', votes: side.SP || side['SOMOS PERU'] || 0 },
+        { key: 'FREPAP', label: 'FREPAP', votes: side.FR || side.FREPAP || 0 },
+        { key: 'VERDE', label: 'Verde', votes: side.VE || side.VERDE || 0 },
+        { key: 'MORADO', label: 'Morado', votes: side.MO || side.MORADO || 0 }
+      ];
+      partyCandidates.sort((a, b) => b.votes - a.votes);
+      const top = partyCandidates[0];
+      if (!top || top.votes === 0 || total === 0) {
+        return { label: 'Sin votos', pct: '0.0', key: '' };
+      }
+      const pct = ((top.votes / total) * 100).toFixed(1);
+      return { label: top.label, pct, key: top.key, votes: top.votes };
+    };
+
+    const liderA = getLeader(sideA, totalA);
+    const liderB = getLeader(sideB, totalB);
+
     return {
       sideA: {
         raw: sideA,
-        total: totalA
+        total: totalA,
+        mesas: sideA.mesas || 0,
+        lider: liderA
       },
       sideB: {
         raw: sideB,
-        total: totalB
+        total: totalB,
+        mesas: sideB.mesas || 0,
+        lider: liderB
       },
       brechaAbsoluta,
       variacionPct,

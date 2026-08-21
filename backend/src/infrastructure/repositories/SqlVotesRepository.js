@@ -373,14 +373,130 @@ class SqlVotesRepository {
     return { success: true, confirmaciones: res.rows };
   }
 
+  async getComparisonVotes(filter = {}) {
+    let whereConditions = [];
+    let params = [];
+    let paramIndex = 1;
+
+    const level = (filter.level || 'distrito').toLowerCase();
+    const location = (filter.location || '').trim();
+    const origen = (filter.origen || '').trim().toUpperCase();
+    const votoTipo = (filter.votoTipo || 'todos').toLowerCase();
+
+    if (location && location.toUpperCase() !== 'TODOS' && location.toUpperCase() !== 'LIMA') {
+      if (level === 'distrito') {
+        whereConditions.push(`LOWER(TRIM(ubicacion)) = LOWER(TRIM($${paramIndex}))`);
+        params.push(location);
+        paramIndex++;
+      } else if (level === 'colegio') {
+        whereConditions.push(`LOWER(TRIM(colegio)) = LOWER(TRIM($${paramIndex}))`);
+        params.push(location);
+        paramIndex++;
+      } else if (level === 'mesa') {
+        whereConditions.push(`LOWER(TRIM(numero_mesa)) = LOWER(TRIM($${paramIndex}))`);
+        params.push(location);
+        paramIndex++;
+      }
+    }
+
+    if (origen && origen !== 'TODOS') {
+      if (origen === 'IMAGEN' || origen === 'OCR') {
+        whereConditions.push(`(UPPER(TRIM(origen)) = 'OCR' OR UPPER(TRIM(origen)) = 'IMAGEN')`);
+      } else {
+        whereConditions.push(`UPPER(TRIM(origen)) = $${paramIndex}`);
+        params.push(origen);
+        paramIndex++;
+      }
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    let sql;
+    if (votoTipo === 'provincial') {
+      sql = `
+        SELECT 
+          COALESCE(SUM(p_fp_votos), 0)::int AS "FP",
+          COALESCE(SUM(p_jp_votos), 0)::int AS "JP",
+          COALESCE(SUM(p_sp_votos), 0)::int AS "SP",
+          COALESCE(SUM(p_sp_votos), 0)::int AS "SOMOS PERU",
+          COALESCE(SUM(p_frepap_votos), 0)::int AS "FR",
+          COALESCE(SUM(p_frepap_votos), 0)::int AS "FREPAP",
+          COALESCE(SUM(p_verde_votos), 0)::int AS "VE",
+          COALESCE(SUM(p_verde_votos), 0)::int AS "VERDE",
+          COALESCE(SUM(p_morado_votos), 0)::int AS "MO",
+          COALESCE(SUM(p_morado_votos), 0)::int AS "MORADO",
+          COALESCE(SUM(p_nulos), 0)::int AS "NULOS",
+          COALESCE(SUM(p_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_total_votos), 0)::int AS "TOTAL",
+          COUNT(DISTINCT numero_mesa)::int AS "mesas"
+        FROM votos_detalle
+        ${whereClause}
+      `;
+    } else if (votoTipo === 'distrital') {
+      sql = `
+        SELECT 
+          COALESCE(SUM(d_fp_votos), 0)::int AS "FP",
+          COALESCE(SUM(d_jp_votos), 0)::int AS "JP",
+          COALESCE(SUM(d_sp_votos), 0)::int AS "SP",
+          COALESCE(SUM(d_sp_votos), 0)::int AS "SOMOS PERU",
+          COALESCE(SUM(d_frepap_votos), 0)::int AS "FR",
+          COALESCE(SUM(d_frepap_votos), 0)::int AS "FREPAP",
+          COALESCE(SUM(d_verde_votos), 0)::int AS "VE",
+          COALESCE(SUM(d_verde_votos), 0)::int AS "VERDE",
+          COALESCE(SUM(d_morado_votos), 0)::int AS "MO",
+          COALESCE(SUM(d_morado_votos), 0)::int AS "MORADO",
+          COALESCE(SUM(d_nulos), 0)::int AS "NULOS",
+          COALESCE(SUM(d_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(d_total_votos), 0)::int AS "TOTAL",
+          COUNT(DISTINCT numero_mesa)::int AS "mesas"
+        FROM votos_detalle
+        ${whereClause}
+      `;
+    } else {
+      sql = `
+        SELECT 
+          COALESCE(SUM(p_fp_votos + d_fp_votos), 0)::int AS "FP",
+          COALESCE(SUM(p_jp_votos + d_jp_votos), 0)::int AS "JP",
+          COALESCE(SUM(p_sp_votos + d_sp_votos), 0)::int AS "SP",
+          COALESCE(SUM(p_sp_votos + d_sp_votos), 0)::int AS "SOMOS PERU",
+          COALESCE(SUM(p_frepap_votos + d_frepap_votos), 0)::int AS "FR",
+          COALESCE(SUM(p_frepap_votos + d_frepap_votos), 0)::int AS "FREPAP",
+          COALESCE(SUM(p_verde_votos + d_verde_votos), 0)::int AS "VE",
+          COALESCE(SUM(p_verde_votos + d_verde_votos), 0)::int AS "VERDE",
+          COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MO",
+          COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MORADO",
+          COALESCE(SUM(p_nulos + d_nulos), 0)::int AS "NULOS",
+          COALESCE(SUM(p_vacios + d_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_total_votos + d_total_votos), 0)::int AS "TOTAL",
+          COUNT(DISTINCT numero_mesa)::int AS "mesas"
+        FROM votos_detalle
+        ${whereClause}
+      `;
+    }
+
+    try {
+      const res = await query(sql, params);
+      return res.rows[0] || {
+        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, VACIOS: 0, TOTAL: 0, mesas: 0
+      };
+    } catch (e) {
+      console.error('[getComparisonVotes Error]:', e.message);
+      return {
+        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, VACIOS: 0, TOTAL: 0, mesas: 0
+      };
+    }
+  }
+
   async getComparison(filterA, filterB) {
     const [resA, resB] = await Promise.all([
-      this.getResults(filterA),
-      this.getResults(filterB)
+      this.getComparisonVotes(filterA),
+      this.getComparisonVotes(filterB)
     ]);
     return {
-      grupoA: { filtro: filterA, resultados: resA },
-      grupoB: { filtro: filterB, resultados: resB }
+      sideA: resA,
+      sideB: resB,
+      filtroA: filterA,
+      filtroB: filterB
     };
   }
 }

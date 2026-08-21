@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ALL_DISTRITOS } from '../../constants/locations';
-import { PARTIES } from '../../constants/parties';
 import { comparisonService } from '../../services/comparisonService';
+import apiClient from '../../services/apiClient';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -30,8 +30,27 @@ export const ComparisonView = () => {
     origen: ''
   });
 
+  const [availableSchools, setAvailableSchools] = useState([]);
+  const [availableMesas, setAvailableMesas] = useState([]);
   const [comparisonData, setComparisonData] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Cargar lista de colegios y mesas disponibles para los filtros dinámicos
+  useEffect(() => {
+    async function loadLocations() {
+      try {
+        const res = await apiClient.get('/voto-real', { action: 'obtener_mesas' });
+        const mesasData = res.mesas || [];
+        const schools = Array.from(new Set(mesasData.map(m => m.colegio).filter(Boolean))).sort();
+        const mesas = Array.from(new Set(mesasData.map(m => m.mesa).filter(Boolean))).sort();
+        setAvailableSchools(schools);
+        setAvailableMesas(mesas);
+      } catch (err) {
+        console.warn('Error cargando colegios/mesas para comparación:', err.message);
+      }
+    }
+    loadLocations();
+  }, []);
 
   useEffect(() => {
     async function loadComparison() {
@@ -39,11 +58,11 @@ export const ComparisonView = () => {
       try {
         const res = await comparisonService.getComparison({
           levelA: filterA.level,
-          locationA: filterA.location,
+          locationA: filterA.level === 'lima' ? 'LIMA' : filterA.location,
           votoTipoA: filterA.votoTipo,
           origenA: filterA.origen,
           levelB: filterB.level,
-          locationB: filterB.location,
+          locationB: filterB.level === 'lima' ? 'LIMA' : filterB.location,
           votoTipoB: filterB.votoTipo,
           origenB: filterB.origen
         });
@@ -58,31 +77,39 @@ export const ComparisonView = () => {
   }, [filterA, filterB]);
 
   const partiesList = [
-    { key: 'FP', label: 'Fuerza Popular', color: '#c41e3a' },
-    { key: 'JP', label: 'Juntos por el Perú', color: '#e07b39' },
-    { key: 'SP', label: 'Somos Perú', color: '#1a8a7d' },
-    { key: 'FR', label: 'FREPAP', color: '#2c5282' },
-    { key: 'VE', label: 'Verde', color: '#38a169' },
-    { key: 'MO', label: 'Morado', color: '#6b46c1' },
-    { key: 'NULOS', label: 'Nulos', color: '#7f8c8d' },
-    { key: 'VACIOS', label: 'Vacíos', color: '#bdc3c7' }
+    { key: 'FP', altKeys: ['FP'], label: 'Fuerza Popular', color: '#c41e3a' },
+    { key: 'JP', altKeys: ['JP'], label: 'Juntos por el Perú', color: '#e07b39' },
+    { key: 'SP', altKeys: ['SP', 'SOMOS PERU'], label: 'Somos Perú', color: '#1a8a7d' },
+    { key: 'FR', altKeys: ['FR', 'FREPAP'], label: 'FREPAP', color: '#2c5282' },
+    { key: 'VE', altKeys: ['VE', 'VERDE'], label: 'Verde', color: '#38a169' },
+    { key: 'MO', altKeys: ['MO', 'MORADO'], label: 'Morado', color: '#6b46c1' },
+    { key: 'NULOS', altKeys: ['NULOS'], label: 'Nulos', color: '#7f8c8d' },
+    { key: 'VACIOS', altKeys: ['VACIOS'], label: 'Vacíos', color: '#bdc3c7' }
   ];
 
+  const getVoteValue = (sideRaw, party) => {
+    if (!sideRaw) return 0;
+    for (const k of party.altKeys) {
+      if (sideRaw[k] !== undefined) return sideRaw[k];
+    }
+    return sideRaw[party.key] || 0;
+  };
+
   const chartLabels = partiesList.map(p => p.label);
-  const dataA = partiesList.map(p => comparisonData?.sideA?.raw?.[p.key] || 0);
-  const dataB = partiesList.map(p => comparisonData?.sideB?.raw?.[p.key] || 0);
+  const dataA = partiesList.map(p => getVoteValue(comparisonData?.sideA?.raw, p));
+  const dataB = partiesList.map(p => getVoteValue(comparisonData?.sideB?.raw, p));
 
   const chartData = {
     labels: chartLabels,
     datasets: [
       {
-        label: `${filterA.location || 'Lado A'} (Lado A)`,
+        label: `${filterA.level === 'lima' ? 'Lima General' : (filterA.location || 'Lado A')} (Lado A)`,
         data: dataA,
         backgroundColor: '#3b82f6',
         borderRadius: 4
       },
       {
-        label: `${filterB.location || 'Lado B'} (Lado B)`,
+        label: `${filterB.level === 'lima' ? 'Lima General' : (filterB.location || 'Lado B')} (Lado B)`,
         data: dataB,
         backgroundColor: '#8b5cf6',
         borderRadius: 4
@@ -97,6 +124,11 @@ export const ComparisonView = () => {
       legend: {
         position: 'top',
         labels: { color: '#64748b', font: { size: 11, weight: '600' } }
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} votos`
+        }
       }
     },
     scales: {
@@ -114,14 +146,23 @@ export const ComparisonView = () => {
   const totalB = comparisonData?.sideB?.total || 0;
   const brecha = comparisonData?.brechaAbsoluta || 0;
   const variacion = comparisonData?.variacionPct || '0.0';
+  const liderA = comparisonData?.sideA?.lider || { label: 'Sin votos', pct: '0.0' };
+  const liderB = comparisonData?.sideB?.lider || { label: 'Sin votos', pct: '0.0' };
+
+  const getLocationOptions = (level) => {
+    if (level === 'distrito') return ALL_DISTRITOS;
+    if (level === 'colegio') return availableSchools.length > 0 ? availableSchools : ['IE 2025 INMACULADA CONCEPCION', 'Colegio San Jose'];
+    if (level === 'mesa') return availableMesas.length > 0 ? availableMesas : ['123456', '145455', '578858'];
+    return ['Lima (General)'];
+  };
 
   return (
     <section className="view active" id="view-comparacion">
       <div className="view-header">
         <div>
-          <h1 className="view-title">Panel de Comparación Avanzada</h1>
+          <h1 className="view-title">📊 Panel de Comparación Avanzada</h1>
           <p className="view-subtitle">
-            Análisis comparativo multivariable (Distritos, Colegios, Votos Provinciales vs. Distritales, Manual vs. OCR)
+            Sincronizado en tiempo real con la tabla <code>votos_detalle</code> (Distritos, Colegios, Mesas, Provincial vs. Distrital, Manual vs. OCR)
           </p>
         </div>
       </div>
@@ -143,7 +184,7 @@ export const ComparisonView = () => {
               <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>
                 LADO A
               </span>
-              <strong style={{ fontSize: '0.9rem' }}>{filterA.location || 'Ate'}</strong>
+              <strong style={{ fontSize: '0.9rem' }}>{filterA.level === 'lima' ? 'Lima (General)' : (filterA.location || 'Ate')}</strong>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
@@ -153,7 +194,11 @@ export const ComparisonView = () => {
                   className="filter-select"
                   style={{ width: '100%', maxWidth: '100%' }}
                   value={filterA.level}
-                  onChange={(e) => setFilterA({ ...filterA, level: e.target.value })}
+                  onChange={(e) => {
+                    const nextLvl = e.target.value;
+                    const opts = getLocationOptions(nextLvl);
+                    setFilterA({ ...filterA, level: nextLvl, location: opts[0] || '' });
+                  }}
                 >
                   <option value="distrito">Distrito</option>
                   <option value="lima">Lima (General)</option>
@@ -162,19 +207,23 @@ export const ComparisonView = () => {
                 </select>
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text3)' }}>Ubicación:</label>
-                <select
-                  className="filter-select"
-                  style={{ width: '100%', maxWidth: '100%' }}
-                  value={filterA.location}
-                  onChange={(e) => setFilterA({ ...filterA, location: e.target.value })}
-                >
-                  {ALL_DISTRITOS.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
+              {filterA.level !== 'lima' && (
+                <div>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text3)' }}>
+                    {filterA.level === 'colegio' ? 'Colegio:' : filterA.level === 'mesa' ? 'Mesa:' : 'Distrito:'}
+                  </label>
+                  <select
+                    className="filter-select"
+                    style={{ width: '100%', maxWidth: '100%' }}
+                    value={filterA.location}
+                    onChange={(e) => setFilterA({ ...filterA, location: e.target.value })}
+                  >
+                    {getLocationOptions(filterA.level).map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 <div>
@@ -241,7 +290,7 @@ export const ComparisonView = () => {
               <span style={{ background: '#8b5cf6', color: '#fff', fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px' }}>
                 LADO B
               </span>
-              <strong style={{ fontSize: '0.9rem' }}>{filterB.location || 'Ancón'}</strong>
+              <strong style={{ fontSize: '0.9rem' }}>{filterB.level === 'lima' ? 'Lima (General)' : (filterB.location || 'Ancón')}</strong>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
@@ -251,7 +300,11 @@ export const ComparisonView = () => {
                   className="filter-select"
                   style={{ width: '100%', maxWidth: '100%' }}
                   value={filterB.level}
-                  onChange={(e) => setFilterB({ ...filterB, level: e.target.value })}
+                  onChange={(e) => {
+                    const nextLvl = e.target.value;
+                    const opts = getLocationOptions(nextLvl);
+                    setFilterB({ ...filterB, level: nextLvl, location: opts[0] || '' });
+                  }}
                 >
                   <option value="distrito">Distrito</option>
                   <option value="lima">Lima (General)</option>
@@ -260,19 +313,23 @@ export const ComparisonView = () => {
                 </select>
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text3)' }}>Ubicación:</label>
-                <select
-                  className="filter-select"
-                  style={{ width: '100%', maxWidth: '100%' }}
-                  value={filterB.location}
-                  onChange={(e) => setFilterB({ ...filterB, location: e.target.value })}
-                >
-                  {ALL_DISTRITOS.map(d => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
+              {filterB.level !== 'lima' && (
+                <div>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text3)' }}>
+                    {filterB.level === 'colegio' ? 'Colegio:' : filterB.level === 'mesa' ? 'Mesa:' : 'Distrito:'}
+                  </label>
+                  <select
+                    className="filter-select"
+                    style={{ width: '100%', maxWidth: '100%' }}
+                    value={filterB.location}
+                    onChange={(e) => setFilterB({ ...filterB, location: e.target.value })}
+                  >
+                    {getLocationOptions(filterB.level).map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                 <div>
@@ -313,12 +370,12 @@ export const ComparisonView = () => {
             <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>
               LADO A
             </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{filterA.location}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{filterA.level === 'lima' ? 'Lima General' : filterA.location}</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#3b82f6' }}>
-              {totalA} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
+              {totalA.toLocaleString()} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: '0.2rem' }}>
-              🏆 Líder: Morado (0.0%)
+              🏆 Líder: <strong>{liderA.label}</strong> ({liderA.pct}%)
             </div>
           </div>
 
@@ -328,10 +385,10 @@ export const ComparisonView = () => {
             </div>
             <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>Brecha Absoluta</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#eab308' }}>
-              {brecha} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
+              {brecha.toLocaleString()} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: '0.2rem' }}>
-              Variación: {variacion}%
+              Variación: <strong>{variacion}%</strong>
             </div>
           </div>
 
@@ -339,12 +396,12 @@ export const ComparisonView = () => {
             <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase' }}>
               LADO B
             </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{filterB.location}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 800 }}>{filterB.level === 'lima' ? 'Lima General' : filterB.location}</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#8b5cf6' }}>
-              {totalB} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
+              {totalB.toLocaleString()} <span style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>votos</span>
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text2)', marginTop: '0.2rem' }}>
-              🏆 Líder: Morado (0.0%)
+              🏆 Líder: <strong>{liderB.label}</strong> ({liderB.pct}%)
             </div>
           </div>
         </div>
@@ -360,32 +417,36 @@ export const ComparisonView = () => {
             <thead>
               <tr>
                 <th>Partido</th>
-                <th>{filterA.location} (A)</th>
-                <th>{filterB.location} (B)</th>
+                <th>{filterA.level === 'lima' ? 'Lima General' : filterA.location} (A)</th>
+                <th>{filterB.level === 'lima' ? 'Lima General' : filterB.location} (B)</th>
                 <th>Diferencia (A - B)</th>
                 <th>Comparativa Visual</th>
               </tr>
             </thead>
             <tbody>
               {partiesList.map(p => {
-                const vA = comparisonData?.sideA?.raw?.[p.key] || 0;
-                const vB = comparisonData?.sideB?.raw?.[p.key] || 0;
+                const vA = getVoteValue(comparisonData?.sideA?.raw, p);
+                const vB = getVoteValue(comparisonData?.sideB?.raw, p);
                 const diff = vA - vB;
+                const maxV = Math.max(vA, vB, 1);
+                const pctA = (vA / maxV) * 100;
+                const pctB = (vB / maxV) * 100;
+
                 return (
                   <tr key={p.key}>
                     <td style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
                       <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: p.color }}></span>
                       {p.label}
                     </td>
-                    <td style={{ fontWeight: 700, color: '#3b82f6' }}>{vA}</td>
-                    <td style={{ fontWeight: 700, color: '#8b5cf6' }}>{vB}</td>
+                    <td style={{ fontWeight: 700, color: '#3b82f6' }}>{vA.toLocaleString()}</td>
+                    <td style={{ fontWeight: 700, color: '#8b5cf6' }}>{vB.toLocaleString()}</td>
                     <td style={{ fontWeight: 700, color: diff >= 0 ? '#10b981' : '#ef4444' }}>
-                      {diff > 0 ? `+${diff}` : diff}
+                      {diff > 0 ? `+${diff.toLocaleString()}` : diff.toLocaleString()}
                     </td>
-                    <td style={{ width: '200px' }}>
-                      <div style={{ display: 'flex', gap: '2px', height: '8px', background: 'var(--bg3)', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${vA > 0 ? 50 : 0}%`, background: '#3b82f6' }}></div>
-                        <div style={{ width: `${vB > 0 ? 50 : 0}%`, background: '#8b5cf6' }}></div>
+                    <td style={{ width: '220px' }}>
+                      <div style={{ display: 'flex', gap: '4px', height: '8px', background: 'var(--bg3)', borderRadius: '4px', overflow: 'hidden', padding: '1px' }}>
+                        <div style={{ width: `${pctA / 2}%`, background: '#3b82f6', borderRadius: '2px' }} title={`Lado A: ${vA}`}></div>
+                        <div style={{ width: `${pctB / 2}%`, background: '#8b5cf6', borderRadius: '2px' }} title={`Lado B: ${vB}`}></div>
                       </div>
                     </td>
                   </tr>
@@ -398,3 +459,5 @@ export const ComparisonView = () => {
     </section>
   );
 };
+
+export default ComparisonView;
