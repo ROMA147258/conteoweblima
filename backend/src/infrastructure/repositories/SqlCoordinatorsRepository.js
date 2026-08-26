@@ -2,53 +2,120 @@ const { query } = require('../database/postgresPool');
 
 class SqlCoordinatorsRepository {
   async getCoordinators(filter = {}) {
+    let whereConditions = [];
+    let params = [];
+    let pIdx = 1;
+
+    const distrito = (filter.distrito || '').trim();
+    const colegio = (filter.colegio || filter.local || '').trim();
+
+    if (distrito && distrito.toUpperCase() !== 'TODOS' && distrito.toUpperCase() !== 'LIMA') {
+      whereConditions.push(`LOWER(TRIM(c.distrito)) = LOWER(TRIM($${pIdx}))`);
+      params.push(distrito);
+      pIdx++;
+    }
+
+    if (colegio && colegio.toUpperCase() !== 'TODOS') {
+      whereConditions.push(`LOWER(TRIM(c.local)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%'`);
+      params.push(colegio);
+      pIdx++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
     const sql = `
-      SELECT 
-        COALESCE(c.id, ROW_NUMBER() OVER(ORDER BY coord.nombre, u.nombre)) AS id,
-        COALESCE(c.fecha_hora, a.fecha_hora) AS "fechaHora",
-        u.nombre AS "personeroNombre",
-        u.dni AS "personeroDni",
-        COALESCE(u.ubicacion, coord.ubicacion) AS distrito,
-        COALESCE(u.colegio, coord.colegio) AS "local",
-        coord.nombre AS "coordinadorNombre",
-        coord.dni AS "coordinadorDni",
-        COALESCE(u.mesa, a.mesa) AS mesa,
-        COALESCE(c.confirmacion, COALESCE(a.confirmacion, 'PENDIENTE')) AS confirmacion,
-        COALESCE(c.foto_url, a.foto_url) AS foto_url
-      FROM usuarios1 coord
-      INNER JOIN usuarios u ON (
-        TRIM(LOWER(coord.colegio)) = TRIM(LOWER(u.colegio))
-        OR (COALESCE(coord.colegio, '') = '' AND TRIM(LOWER(coord.ubicacion)) = TRIM(LOWER(u.ubicacion)))
+      WITH all_coordinadores AS (
+        SELECT 
+          id,
+          nombres_y_apellidos AS coordinador_nombre,
+          dni AS coordinador_dni,
+          COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(local_de_votacion_asignado), ''), NULLIF(TRIM(local_de_votacion), ''), '') AS "local",
+          'Coordinador de Local' AS tipo_coordinador
+        FROM rcoordinadores
+        WHERE dni IS NOT NULL AND dni != ''
+        UNION ALL
+        SELECT 
+          id,
+          nombres_y_apellidos AS coordinador_nombre,
+          dni AS coordinador_dni,
+          COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(local_de_votacion_asignado), ''), NULLIF(TRIM(local_de_votacion), ''), '') AS "local",
+          'Coordinador Distrital' AS tipo_coordinador
+        FROM rcoordinadoresd
+        WHERE dni IS NOT NULL AND dni != ''
+        UNION ALL
+        SELECT 
+          id,
+          nombres_y_apellidos AS coordinador_nombre,
+          dni AS coordinador_dni,
+          COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(local_de_votacion_asignado), ''), NULLIF(TRIM(local_de_votacion), ''), '') AS "local",
+          'Coordinador Zonal' AS tipo_coordinador
+        FROM rcoordinadoresz
+        WHERE dni IS NOT NULL AND dni != ''
+        UNION ALL
+        SELECT 
+          id,
+          nombre AS coordinador_nombre,
+          dni AS coordinador_dni,
+          COALESCE(NULLIF(TRIM(ubicacion), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(colegio), ''), '') AS "local",
+          'Coordinador' AS tipo_coordinador
+        FROM usuarios1
+        WHERE dni IS NOT NULL AND dni != ''
+      ),
+      all_personeros AS (
+        SELECT 
+          p.dni AS personero_dni,
+          p.nombres_y_apellidos AS personero_nombre,
+          COALESCE(NULLIF(TRIM(p.distrito_asignado), ''), NULLIF(TRIM(p.distrito_donde_vota), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(p.local_de_votacion_asignado), ''), NULLIF(TRIM(p.local_de_votacion), ''), '') AS "local",
+          COALESCE(NULLIF(TRIM(p.mesa_asignada), ''), NULLIF(TRIM(p.mesa_de_sufragio), ''), '') AS mesa
+        FROM rpersoneros p
+        WHERE p.dni IS NOT NULL AND p.dni != ''
+        UNION
+        SELECT 
+          u.dni AS personero_dni,
+          u.nombre AS personero_nombre,
+          COALESCE(NULLIF(TRIM(u.ubicacion), ''), 'LIMA') AS distrito,
+          COALESCE(NULLIF(TRIM(u.colegio), ''), '') AS "local",
+          COALESCE(NULLIF(TRIM(u.mesa), ''), '') AS mesa
+        FROM usuarios u
+        WHERE u.dni IS NOT NULL AND u.dni != '' AND u.dni NOT ILIKE '%Admin%'
       )
-      LEFT JOIN asistencia a ON u.dni = a.dni
-      LEFT JOIN coordinadores c ON u.dni = c.personero_dni
-      UNION
       SELECT 
         c.id,
-        c.fecha_hora AS "fechaHora",
-        c.personero_nombre AS "personeroNombre",
-        c.personero_dni AS "personeroDni",
-        c.distrito,
-        c.local,
         c.coordinador_nombre AS "coordinadorNombre",
         c.coordinador_dni AS "coordinadorDni",
-        a.mesa,
-        c.confirmacion,
-        c.foto_url
-      FROM coordinadores c
-      LEFT JOIN asistencia a ON c.personero_dni = a.dni
-      WHERE NOT EXISTS (
-        SELECT 1 FROM usuarios u 
-        INNER JOIN usuarios1 coord ON TRIM(LOWER(coord.colegio)) = TRIM(LOWER(u.colegio))
-        WHERE u.dni = c.personero_dni
+        c.distrito,
+        c.local,
+        c.tipo_coordinador AS "tipoCoordinador",
+        COALESCE(p.personero_nombre, cv.personero_nombre, '') AS "personeroNombre",
+        COALESCE(p.personero_dni, cv.personero_dni, '') AS "personeroDni",
+        COALESCE(p.mesa, a.mesa, '') AS mesa,
+        COALESCE(cv.confirmacion, a.confirmacion, 'PENDIENTE') AS confirmacion,
+        COALESCE(cv.foto_url, a.foto_url, '') AS foto_url,
+        COALESCE(cv.fecha_hora, a.fecha_hora) AS "fechaHora"
+      FROM all_coordinadores c
+      LEFT JOIN all_personeros p ON (
+        (c.local != '' AND p.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(p.local)))
+        OR (c.distrito != '' AND LOWER(TRIM(c.distrito)) = LOWER(TRIM(p.distrito)))
       )
-      ORDER BY "coordinadorNombre" ASC, "personeroNombre" ASC
+      LEFT JOIN coordinadores cv ON (
+        (p.personero_dni IS NOT NULL AND cv.personero_dni = p.personero_dni)
+        OR (cv.coordinador_dni = c.coordinador_dni)
+      )
+      LEFT JOIN asistencia a ON (p.personero_dni IS NOT NULL AND a.dni = p.personero_dni)
+      ${whereClause}
+      ORDER BY c.distrito ASC, c.coordinador_nombre ASC
     `;
 
     try {
-      const res = await query(sql);
+      const res = await query(sql, params);
       return res.rows || [];
     } catch (err) {
+      console.error('[getCoordinators Error]:', err.message);
       try {
         const fb = await query('SELECT * FROM coordinadores ORDER BY fecha_hora DESC');
         return fb.rows || [];
@@ -58,22 +125,63 @@ class SqlCoordinatorsRepository {
     }
   }
 
-  async getAggregates() {
-    let totalMesasEsperadas = 3647;
-    let totalCoords = 125;
+  async getAggregates(filter = {}) {
+    let whereColegios = [];
+    let whereCoords = [];
+    let params = [];
+    let pIdx = 1;
+
+    const distrito = (filter.distrito || '').trim();
+    const colegio = (filter.colegio || filter.local || '').trim();
+
+    if (distrito && distrito.toUpperCase() !== 'TODOS' && distrito.toUpperCase() !== 'LIMA') {
+      whereColegios.push(`LOWER(TRIM(distrito)) = LOWER(TRIM($${pIdx}))`);
+      whereCoords.push(`(LOWER(TRIM(distrito_asignado)) = LOWER(TRIM($${pIdx})) OR LOWER(TRIM(distrito_donde_vota)) = LOWER(TRIM($${pIdx})))`);
+      params.push(distrito);
+      pIdx++;
+    }
+
+    if (colegio && colegio.toUpperCase() !== 'TODOS') {
+      whereColegios.push(`LOWER(TRIM(colegio)) = LOWER(TRIM($${pIdx}))`);
+      whereCoords.push(`(LOWER(TRIM(local_de_votacion_asignado)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%' OR LOWER(TRIM(local_de_votacion)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%')`);
+      params.push(colegio);
+      pIdx++;
+    }
+
+    const clauseColegios = whereColegios.length > 0 ? `WHERE ${whereColegios.join(' AND ')}` : '';
+    const clauseCoords = whereCoords.length > 0 ? `WHERE ${whereCoords.join(' AND ')}` : '';
+
+    let totalMesasEsperadas = 25703;
+    let totalCoords = 97;
     let coordsConfirmados = 0;
 
     try {
       const [mesasTotalRes, coordsPadronRes, coordsConfirmadosRes] = await Promise.all([
-        query('SELECT COALESCE(SUM(num_mesas), 3647)::int AS total_mesas FROM colegios'),
-        query('SELECT COUNT(DISTINCT dni)::int AS total_coords FROM usuarios1'),
-        query("SELECT COUNT(DISTINCT coordinador_dni)::int AS coords_confirmados FROM coordinadores WHERE confirmacion = 'SI' OR confirmacion = 'CONFIRMADO'")
+        query(`SELECT COALESCE(SUM(num_mesas), 0)::int AS total_mesas FROM colegios ${clauseColegios}`, params),
+        query(`
+          SELECT COUNT(DISTINCT dni)::int AS total_coords FROM (
+            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadores
+            UNION
+            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadoresd
+            UNION
+            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadoresz
+            UNION
+            SELECT dni, ubicacion AS distrito_asignado, ubicacion AS distrito_donde_vota, colegio AS local_de_votacion_asignado, colegio AS local_de_votacion FROM usuarios1 WHERE dni IS NOT NULL AND dni != ''
+          ) all_c ${clauseCoords}
+        `, params),
+        query(`
+          SELECT COUNT(DISTINCT coordinador_dni)::int AS coords_confirmados 
+          FROM coordinadores 
+          WHERE confirmacion = 'SI' OR confirmacion = 'CONFIRMADO'
+        `)
       ]);
 
-      totalMesasEsperadas = mesasTotalRes.rows[0]?.total_mesas || 3647;
-      totalCoords = coordsPadronRes.rows[0]?.total_coords || 125;
+      totalMesasEsperadas = mesasTotalRes.rows[0]?.total_mesas || 0;
+      totalCoords = coordsPadronRes.rows[0]?.total_coords || 0;
       coordsConfirmados = coordsConfirmadosRes.rows[0]?.coords_confirmados || 0;
-    } catch (_) {}
+    } catch (err) {
+      console.error('[getAggregates Error]:', err.message);
+    }
 
     return {
       totalMesasEsperadas,

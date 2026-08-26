@@ -39,15 +39,15 @@ export const CoordinatorView = () => {
   }, [filters.distrito, filters.colegio]);
 
   const kpis = data?.kpis || {
-    totalMesasEsperadas: 3647,
-    personasQueAsistieron: 3,
-    coordinadoresFaltantes: 123,
-    porcentajeAsistencia: '0%'
+    totalMesasEsperadas: 0,
+    personasQueAsistieron: 0,
+    coordinadoresFaltantes: 0,
+    porcentajeAsistencia: 0
   };
 
-  const confirmadas = data?.totalConfirmadas || 6;
-  const porConfirmar = data?.totalPorConfirmar || 3641;
-  const totalMesas = kpis.totalMesasEsperadas || 3647;
+  const confirmadas = data?.totalConfirmadas ?? 0;
+  const totalMesas = kpis.totalMesasEsperadas || 0;
+  const porConfirmar = data?.totalPorConfirmar !== undefined ? data.totalPorConfirmar : Math.max(0, totalMesas - confirmadas);
 
   // Doughnut Chart Data (Apertura General)
   const doughnutData = {
@@ -62,12 +62,21 @@ export const CoordinatorView = () => {
   };
 
   // Bar Chart Data (Apertura por Distrito)
+  const distritosCount = {};
+  (data?.coordinadoresAgrupados || []).forEach(c => {
+    if (c.distrito) {
+      distritosCount[c.distrito] = (distritosCount[c.distrito] || 0) + (c.personerosAsistieron || 0);
+    }
+  });
+  const barLabels = Object.keys(distritosCount).length > 0 ? Object.keys(distritosCount) : ['LIMA'];
+  const barValues = Object.keys(distritosCount).length > 0 ? Object.values(distritosCount) : [confirmadas];
+
   const barData = {
-    labels: ['ATE'],
+    labels: barLabels,
     datasets: [
       {
         label: 'Mesas aperturadas/confirmadas por distrito',
-        data: [4],
+        data: barValues,
         backgroundColor: '#6366f1',
         borderRadius: 4
       }
@@ -113,7 +122,9 @@ export const CoordinatorView = () => {
           <div className="kpi-card-pro" style={{ '--kpi-color': '#8b5cf6', padding: '0.75rem 1rem' }}>
             <span className="kpi-icon">📈</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value">{kpis.porcentajeAsistencia}%</span>
+              <span className="kpi-card-value">
+                {typeof kpis.porcentajeAsistencia === 'string' ? kpis.porcentajeAsistencia.replace('%', '') : kpis.porcentajeAsistencia}%
+              </span>
               <span className="kpi-card-label">% ASISTENCIA</span>
             </div>
           </div>
@@ -133,9 +144,9 @@ export const CoordinatorView = () => {
           <div style={{ background: 'var(--bg3)', padding: '0.6rem 0.85rem', borderRadius: '6px', fontSize: '0.76rem', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1rem' }}>
             <div>📊 Resumen General de Mesas:</div>
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <span>Total Mesas: <strong>{totalMesas}</strong></span>
-              <span style={{ color: '#10b981' }}>✅ Confirmadas: <strong>{confirmadas} ({((confirmadas / totalMesas) * 100).toFixed(0)}%)</strong></span>
-              <span style={{ color: '#ef4444' }}>⏳ Por confirmar: <strong>{porConfirmar} ({((porConfirmar / totalMesas) * 100).toFixed(0)}%)</strong></span>
+              <span>Total Mesas: <strong>{totalMesas.toLocaleString()}</strong></span>
+              <span style={{ color: '#10b981' }}>✅ Confirmadas: <strong>{confirmadas.toLocaleString()} ({totalMesas > 0 ? ((confirmadas / totalMesas) * 100).toFixed(1) : '0.0'}%)</strong></span>
+              <span style={{ color: '#ef4444' }}>⏳ Por confirmar: <strong>{porConfirmar.toLocaleString()} ({totalMesas > 0 ? ((porConfirmar / totalMesas) * 100).toFixed(1) : '0.0'}%)</strong></span>
             </div>
           </div>
 

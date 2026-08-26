@@ -6,7 +6,7 @@ class GetCoordinatorsUseCase {
   async execute(filter = {}) {
     const [coordinatorsList, aggregates] = await Promise.all([
       this.coordinatorsRepository.getCoordinators(filter),
-      this.coordinatorsRepository.getAggregates()
+      this.coordinatorsRepository.getAggregates(filter)
     ]);
 
     // Agrupar por coordinador / local para la grilla de tarjetas
@@ -20,6 +20,7 @@ class GetCoordinatorsUseCase {
           coordinadorDni: c.coordinadorDni || '',
           local: c.local || '',
           distrito: c.distrito || '',
+          tipoCoordinador: c.tipoCoordinador || 'Coordinador',
           totalMesas: 0,
           personerosAsistieron: 0,
           personerosFaltantes: 0,
@@ -33,20 +34,22 @@ class GetCoordinatorsUseCase {
       } else {
         grouped[key].personerosFaltantes += 1;
       }
-      grouped[key].personeros.push({
-        nombre: c.personeroNombre,
-        dni: c.personeroDni,
-        mesa: c.mesa,
-        confirmacion: c.confirmacion,
-        fotoUrl: c.foto_url,
-        fechaHora: c.fechaHora
-      });
+      if (c.personeroDni || c.personeroNombre) {
+        grouped[key].personeros.push({
+          nombre: c.personeroNombre,
+          dni: c.personeroDni,
+          mesa: c.mesa,
+          confirmacion: c.confirmacion,
+          fotoUrl: c.foto_url,
+          fechaHora: c.fechaHora
+        });
+      }
     });
 
     const totalPersonasAsistieron = coordinatorsList.filter(c => c.confirmacion === 'SI' || c.confirmacion === 'CONFIRMADO').length;
-    const totalPersonasEsperadas = coordinatorsList.length;
-    const porcentajeAsistencia = totalPersonasEsperadas > 0
-      ? ((totalPersonasAsistieron / totalPersonasEsperadas) * 100).toFixed(1)
+    const totalEsperadas = aggregates.totalMesasEsperadas > 0 ? aggregates.totalMesasEsperadas : coordinatorsList.length;
+    const porcentajeAsistencia = totalEsperadas > 0
+      ? ((totalPersonasAsistieron / totalEsperadas) * 100).toFixed(1)
       : '0.0';
 
     return {

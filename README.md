@@ -15,7 +15,7 @@ conteovotosweblima/
 │   │   ├── infrastructure/      # SQL Server (mssql), Repositorios, Servicios
 │   │   ├── interfaces/          # Controladores, Rutas REST y Middlewares
 │   │   ├── config/              # Variables de entorno
-│   │   └── server.js            # Servidor Express (Puerto 5181)
+│   │   └── server.js            # Servidor Express (Puerto 5182)
 │   ├── .env.example
 │   └── package.json
 │
@@ -53,7 +53,7 @@ conteovotosweblima/
 ## 🚀 Inicio Rápido
 
 ### Opción 1: Mediante Script Automático
-Haz doble clic sobre **`INICIAR.bat`** para arrancar el backend en el puerto `5181` y el frontend en el puerto `5174`.
+Haz doble clic sobre **`INICIAR.bat`** para arrancar el backend en el puerto `5182` y el frontend en el puerto `5174`.
 
 ### Opción 2: Ejecución Manual
 ```bash
@@ -69,5 +69,5 @@ npm run dev
 ```
 
 * **Frontend:** [http://localhost:5174](http://localhost:5174)
-* **Backend API:** [http://localhost:5181/api](http://localhost:5181/api)
+* **Backend API:** [http://localhost:5182/api](http://localhost:5182/api)
 * **Credenciales Admin:** Usuario: `admin` | Clave: `admin2024`
