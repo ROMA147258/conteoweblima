@@ -185,7 +185,7 @@ export const AttendanceView = () => {
             <span className="kpi-icon">👥</span>
             <div className="kpi-meta">
               <span className="kpi-card-value">{kpis.totalPersonerosRegistrados.toLocaleString()}</span>
-              <span className="kpi-card-label">TOTAL PERSONEROS REGISTRADOS</span>
+              <span className="kpi-card-label">TOTAL DE PERSONEROS</span>
             </div>
           </div>
 

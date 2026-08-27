@@ -32,26 +32,52 @@ class SqlVotesRepository {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
+    const PARTIES_CONFIG = [
+      { key: 'FP', col: 'fp' },
+      { key: 'JP', col: 'jp' },
+      { key: 'SP', col: 'sp' },
+      { key: 'FREPAP', col: 'frepap' },
+      { key: 'VERDE', col: 'verde' },
+      { key: 'MORADO', col: 'morado' },
+      { key: 'RP', col: 'rp' },
+      { key: 'AN', col: 'an' },
+      { key: 'AVANZA', col: 'avanza' },
+      { key: 'PODEMOS', col: 'podemos' },
+      { key: 'OBRAS', col: 'obras' },
+      { key: 'AP', col: 'ap' },
+      { key: 'ESPERANZA', col: 'esperanza' },
+      { key: 'VENCEREMOS', col: 'venceremos' },
+      { key: 'VISION', col: 'vision' },
+      { key: 'APRA', col: 'apra' },
+      { key: 'PPC', col: 'ppc' },
+      { key: 'PROGRESEMOS', col: 'progresemos' },
+      { key: 'BUEN_GOBIERNO', col: 'buen_gobierno' },
+      { key: 'PERU_LIBRE', col: 'peru_libre' },
+      { key: 'TIERRA_VERDE', col: 'tierra_verde' },
+      { key: 'PUEBLO_CONSCIENTE', col: 'pueblo_consciente' },
+      { key: 'PPP', col: 'ppp' },
+      { key: 'INTEGRIDAD', col: 'integridad' },
+      { key: 'FUERZA_CIUDADANA', col: 'fuerza_ciudadana' },
+      { key: 'BATALLA', col: 'batalla' },
+      { key: 'APP', col: 'app' },
+      { key: 'ALIANZA_REGIONAL', col: 'alianza_regional' }
+    ];
+
+    const pCols = PARTIES_CONFIG.map(p => `COALESCE(SUM(p_${p.col}_votos), 0)::int AS "p_${p.key}"`).join(',\n        ');
+    const dCols = PARTIES_CONFIG.map(p => `COALESCE(SUM(d_${p.col}_votos), 0)::int AS "d_${p.key}"`).join(',\n        ');
+
     const sqlTotals = `
       SELECT 
-        COALESCE(SUM(p_fp_votos), 0)::int AS "p_FP",
-        COALESCE(SUM(p_jp_votos), 0)::int AS "p_JP",
-        COALESCE(SUM(p_sp_votos), 0)::int AS "p_SP",
-        COALESCE(SUM(p_frepap_votos), 0)::int AS "p_FREPAP",
-        COALESCE(SUM(p_verde_votos), 0)::int AS "p_VERDE",
-        COALESCE(SUM(p_morado_votos), 0)::int AS "p_MORADO",
+        ${pCols},
         COALESCE(SUM(p_nulos), 0)::int AS "p_NULOS",
         COALESCE(SUM(p_vacios), 0)::int AS "p_VACIOS",
+        COALESCE(SUM(p_impugnados), 0)::int AS "p_IMPUGNADOS",
         COALESCE(SUM(p_total_votos), 0)::int AS "p_TOTAL",
 
-        COALESCE(SUM(d_fp_votos), 0)::int AS "d_FP",
-        COALESCE(SUM(d_jp_votos), 0)::int AS "d_JP",
-        COALESCE(SUM(d_sp_votos), 0)::int AS "d_SP",
-        COALESCE(SUM(d_frepap_votos), 0)::int AS "d_FREPAP",
-        COALESCE(SUM(d_verde_votos), 0)::int AS "d_VERDE",
-        COALESCE(SUM(d_morado_votos), 0)::int AS "d_MORADO",
+        ${dCols},
         COALESCE(SUM(d_nulos), 0)::int AS "d_NULOS",
         COALESCE(SUM(d_vacios), 0)::int AS "d_VACIOS",
+        COALESCE(SUM(d_impugnados), 0)::int AS "d_IMPUGNADOS",
         COALESCE(SUM(d_total_votos), 0)::int AS "d_TOTAL",
 
         COUNT(DISTINCT numero_mesa)::int AS "mesas_escrutadas"
@@ -65,24 +91,16 @@ class SqlVotesRepository {
     const sqlDesglose = `
       SELECT 
         origen,
-        COALESCE(SUM(p_fp_votos), 0)::int AS "p_FP",
-        COALESCE(SUM(p_jp_votos), 0)::int AS "p_JP",
-        COALESCE(SUM(p_sp_votos), 0)::int AS "p_SP",
-        COALESCE(SUM(p_frepap_votos), 0)::int AS "p_FREPAP",
-        COALESCE(SUM(p_verde_votos), 0)::int AS "p_VERDE",
-        COALESCE(SUM(p_morado_votos), 0)::int AS "p_MORADO",
+        ${pCols},
         COALESCE(SUM(p_nulos), 0)::int AS "p_NULOS",
         COALESCE(SUM(p_vacios), 0)::int AS "p_VACIOS",
+        COALESCE(SUM(p_impugnados), 0)::int AS "p_IMPUGNADOS",
         COALESCE(SUM(p_total_votos), 0)::int AS "p_TOTAL",
 
-        COALESCE(SUM(d_fp_votos), 0)::int AS "d_FP",
-        COALESCE(SUM(d_jp_votos), 0)::int AS "d_JP",
-        COALESCE(SUM(d_sp_votos), 0)::int AS "d_SP",
-        COALESCE(SUM(d_frepap_votos), 0)::int AS "d_FREPAP",
-        COALESCE(SUM(d_verde_votos), 0)::int AS "d_VERDE",
-        COALESCE(SUM(d_morado_votos), 0)::int AS "d_MORADO",
+        ${dCols},
         COALESCE(SUM(d_nulos), 0)::int AS "d_NULOS",
         COALESCE(SUM(d_vacios), 0)::int AS "d_VACIOS",
+        COALESCE(SUM(d_impugnados), 0)::int AS "d_IMPUGNADOS",
         COALESCE(SUM(d_total_votos), 0)::int AS "d_TOTAL"
       FROM votos_detalle
       ${whereClause}
@@ -98,52 +116,40 @@ class SqlVotesRepository {
       ocrDistrital: {}
     };
 
+    const buildPartyMap = (r, prefix) => {
+      const obj = {};
+      PARTIES_CONFIG.forEach(p => {
+        obj[p.key] = r[`${prefix}_${p.key}`] || 0;
+      });
+      // Aliases para compatibilidad
+      obj['SOMOS PERU'] = obj.SP || 0;
+      obj['FREPAP'] = obj.FREPAP || 0;
+      obj['VERDE'] = obj.VERDE || 0;
+      obj['MORADO'] = obj.MORADO || 0;
+      obj.NULOS = r[`${prefix}_NULOS`] || 0;
+      obj.VACIOS = r[`${prefix}_VACIOS`] || 0;
+      obj.IMPUGNADOS = r[`${prefix}_IMPUGNADOS`] || 0;
+      obj.TOTAL = r[`${prefix}_TOTAL`] || 0;
+      return obj;
+    };
+
     desgloseResult.rows.forEach(r => {
       const orig = (r.origen || '').toUpperCase();
       if (orig === 'MANUAL') {
-        desglose.manualProvincial = {
-          FP: r.p_FP, JP: r.p_JP, 'SOMOS PERU': r.p_SP, FREPAP: r.p_FREPAP,
-          VERDE: r.p_VERDE, MORADO: r.p_MORADO, NULOS: r.p_NULOS, VACIOS: r.p_VACIOS, TOTAL: r.p_TOTAL
-        };
-        desglose.manualDistrital = {
-          FP: r.d_FP, JP: r.d_JP, 'SOMOS PERU': r.d_SP, FREPAP: r.d_FREPAP,
-          VERDE: r.d_VERDE, MORADO: r.d_MORADO, NULOS: r.d_NULOS, VACIOS: r.d_VACIOS, TOTAL: r.d_TOTAL
-        };
-      } else if (orig === 'OCR') {
-        desglose.ocrProvincial = {
-          FP: r.p_FP, JP: r.p_JP, 'SOMOS PERU': r.p_SP, FREPAP: r.p_FREPAP,
-          VERDE: r.p_VERDE, MORADO: r.p_MORADO, NULOS: r.p_NULOS, VACIOS: r.p_VACIOS, TOTAL: r.p_TOTAL
-        };
-        desglose.ocrDistrital = {
-          FP: r.d_FP, JP: r.d_JP, 'SOMOS PERU': r.d_SP, FREPAP: r.d_FREPAP,
-          VERDE: r.d_VERDE, MORADO: r.d_MORADO, NULOS: r.d_NULOS, VACIOS: r.d_VACIOS, TOTAL: r.d_TOTAL
-        };
+        desglose.manualProvincial = buildPartyMap(r, 'p');
+        desglose.manualDistrital = buildPartyMap(r, 'd');
+      } else if (orig === 'OCR' || orig === 'IMAGEN') {
+        desglose.ocrProvincial = buildPartyMap(r, 'p');
+        desglose.ocrDistrital = buildPartyMap(r, 'd');
       }
     });
 
+    const totalesProvincial = buildPartyMap(row, 'p');
+    const totalesDistrital = buildPartyMap(row, 'd');
+
     return {
-      totalesProvincial: {
-        FP: row.p_FP || 0,
-        JP: row.p_JP || 0,
-        'SOMOS PERU': row.p_SP || 0,
-        FREPAP: row.p_FREPAP || 0,
-        VERDE: row.p_VERDE || 0,
-        MORADO: row.p_MORADO || 0,
-        NULOS: row.p_NULOS || 0,
-        VACIOS: row.p_VACIOS || 0,
-        TOTAL: row.p_TOTAL || 0
-      },
-      totalesDistrital: {
-        FP: row.d_FP || 0,
-        JP: row.d_JP || 0,
-        'SOMOS PERU': row.d_SP || 0,
-        FREPAP: row.d_FREPAP || 0,
-        VERDE: row.d_VERDE || 0,
-        MORADO: row.d_MORADO || 0,
-        NULOS: row.d_NULOS || 0,
-        VACIOS: row.d_VACIOS || 0,
-        TOTAL: row.d_TOTAL || 0
-      },
+      totalesProvincial,
+      totalesDistrital,
       mesasEscrutadas: row.mesas_escrutadas || 0,
       desglose
     };

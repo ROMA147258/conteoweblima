@@ -36,17 +36,6 @@ class SqlAttendanceRepository {
         WHERE r.dni IS NOT NULL AND r.dni != ''
         UNION
         SELECT 
-          u.dni, 
-          u.nombre, 
-          '' AS celular,
-          COALESCE(NULLIF(TRIM(u.ubicacion), ''), 'LIMA') AS distrito, 
-          COALESCE(NULLIF(TRIM(u.colegio), ''), '') AS "local", 
-          COALESCE(NULLIF(TRIM(u.mesa), ''), '') AS mesa
-        FROM usuarios u
-        WHERE u.dni IS NOT NULL AND u.dni != '' AND u.dni NOT ILIKE '%Admin%'
-          AND NOT EXISTS (SELECT 1 FROM rpersoneros r2 WHERE r2.dni = u.dni)
-        UNION
-        SELECT 
           a.dni, 
           a.nombre, 
           '' AS celular,
@@ -55,8 +44,7 @@ class SqlAttendanceRepository {
           COALESCE(NULLIF(TRIM(a.mesa), ''), '') AS mesa
         FROM asistencia a
         WHERE a.dni IS NOT NULL AND a.dni != ''
-          AND NOT EXISTS (SELECT 1 FROM rpersoneros r3 WHERE r3.dni = a.dni)
-          AND NOT EXISTS (SELECT 1 FROM usuarios u2 WHERE u2.dni = a.dni)
+          AND NOT EXISTS (SELECT 1 FROM rpersoneros r2 WHERE r2.dni = a.dni)
       ),
       llegadas_recent AS (
         SELECT DISTINCT ON (dni) 
@@ -119,62 +107,62 @@ class SqlAttendanceRepository {
     const porDistrito2 = {};
 
     let distParam = (filter.distrito || '').trim();
+    let localParam = (filter.local || filter.colegio || '').trim();
     let filterDist = distParam && distParam.toUpperCase() !== 'TODOS' && distParam.toUpperCase() !== 'LIMA';
+    let filterLocal = localParam && localParam.toUpperCase() !== 'TODOS';
+
+    let whereColegios = [];
+    let whereAsis = [];
+    let whereLlegadas = [];
+    let params = [];
+    let pIdx = 1;
+
+    if (filterDist) {
+      whereColegios.push(`LOWER(TRIM(distrito)) = LOWER(TRIM($${pIdx}))`);
+      whereAsis.push(`LOWER(TRIM(distrito)) = LOWER(TRIM($${pIdx}))`);
+      whereLlegadas.push(`LOWER(TRIM(distrito)) = LOWER(TRIM($${pIdx}))`);
+      params.push(distParam);
+      pIdx++;
+    }
+
+    if (filterLocal) {
+      whereColegios.push(`LOWER(TRIM(colegio)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%'`);
+      whereAsis.push(`LOWER(TRIM(local)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%'`);
+      whereLlegadas.push(`LOWER(TRIM(colegio)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%'`);
+      params.push(localParam);
+      pIdx++;
+    }
+
+    const clauseColegios = whereColegios.length > 0 ? `WHERE ${whereColegios.join(' AND ')}` : '';
+    const clauseAsis = whereAsis.length > 0 ? `AND ${whereAsis.join(' AND ')}` : '';
+    const clauseLlegadas = whereLlegadas.length > 0 ? `WHERE ${whereLlegadas.join(' AND ')}` : '';
 
     try {
-      // 1. Total personeros registrados
-      const totalSql = filterDist
-        ? `
-          SELECT COUNT(DISTINCT dni)::int AS total FROM (
-            SELECT dni, COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito FROM rpersoneros WHERE dni IS NOT NULL AND dni != ''
-            UNION
-            SELECT dni, COALESCE(NULLIF(TRIM(ubicacion), ''), 'LIMA') AS distrito FROM usuarios WHERE dni IS NOT NULL AND dni != '' AND dni NOT ILIKE '%Admin%'
-          ) t WHERE LOWER(TRIM(distrito)) = LOWER(TRIM($1))
-        `
-        : `
-          SELECT COUNT(DISTINCT dni)::int AS total FROM (
-            SELECT dni FROM rpersoneros WHERE dni IS NOT NULL AND dni != ''
-            UNION
-            SELECT dni FROM usuarios WHERE dni IS NOT NULL AND dni != '' AND dni NOT ILIKE '%Admin%'
-          ) t
-        `;
-      const totalRes = await query(totalSql, filterDist ? [distParam] : []);
-      totalPersoneros = totalRes.rows[0]?.total || 0;
-      if (totalPersoneros === 0 && !filterDist) totalPersoneros = 1661; // Valor base referencial
+      // 1. Total personeros esperados (igual a la cantidad de mesas de los locales de votación)
+      const totalMesasSql = `SELECT COALESCE(SUM(num_mesas), 0)::int AS total FROM colegios ${clauseColegios}`;
+      const totalMesasRes = await query(totalMesasSql, params);
+      totalPersoneros = totalMesasRes.rows[0]?.total || 0;
+      if (totalPersoneros === 0 && !filterDist && !filterLocal) totalPersoneros = 29121;
 
       // 2. Primera Asistencia (Foto / Apertura)
-      const conf1Sql = filterDist
-        ? `
-          SELECT COUNT(DISTINCT dni)::int AS total 
-          FROM asistencia 
-          WHERE (confirmacion IN ('SI', 'CONFIRMADO') OR (foto_url IS NOT NULL AND foto_url != ''))
-            AND LOWER(TRIM(distrito)) = LOWER(TRIM($1))
-        `
-        : `
-          SELECT COUNT(DISTINCT dni)::int AS total 
-          FROM asistencia 
-          WHERE confirmacion IN ('SI', 'CONFIRMADO') OR (foto_url IS NOT NULL AND foto_url != '')
-        `;
-      const conf1Res = await query(conf1Sql, filterDist ? [distParam] : []);
+      const conf1Sql = `
+        SELECT COUNT(DISTINCT dni)::int AS total 
+        FROM asistencia 
+        WHERE (confirmacion IN ('SI', 'CONFIRMADO') OR (foto_url IS NOT NULL AND foto_url != ''))
+        ${clauseAsis}
+      `;
+      const conf1Res = await query(conf1Sql, params);
       conf1 = conf1Res.rows[0]?.total || 0;
 
       // 3. Segunda Asistencia (Llegada con GPS)
-      const conf2Sql = filterDist
-        ? `
-          SELECT COUNT(DISTINCT dni)::int AS total FROM (
-            SELECT dni, distrito FROM asistenciallegada WHERE dni IS NOT NULL AND dni != ''
-            UNION
-            SELECT dni, distrito FROM asistencia WHERE ubicacion_gps IS NOT NULL AND ubicacion_gps != ''
-          ) l WHERE LOWER(TRIM(distrito)) = LOWER(TRIM($1))
-        `
-        : `
-          SELECT COUNT(DISTINCT dni)::int AS total FROM (
-            SELECT dni FROM asistenciallegada WHERE dni IS NOT NULL AND dni != ''
-            UNION
-            SELECT dni FROM asistencia WHERE ubicacion_gps IS NOT NULL AND ubicacion_gps != ''
-          ) l
-        `;
-      const conf2Res = await query(conf2Sql, filterDist ? [distParam] : []);
+      const conf2Sql = `
+        SELECT COUNT(DISTINCT dni)::int AS total FROM (
+          SELECT dni, distrito, colegio FROM asistenciallegada WHERE dni IS NOT NULL AND dni != ''
+          UNION
+          SELECT dni, distrito, local AS colegio FROM asistencia WHERE ubicacion_gps IS NOT NULL AND ubicacion_gps != ''
+        ) l ${clauseLlegadas}
+      `;
+      const conf2Res = await query(conf2Sql, params);
       conf2 = conf2Res.rows[0]?.total || 0;
 
       // 4. Distritos con reporte

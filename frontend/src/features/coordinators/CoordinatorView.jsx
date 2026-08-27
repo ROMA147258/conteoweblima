@@ -99,7 +99,7 @@ export const CoordinatorView = () => {
             <span className="kpi-icon">👥</span>
             <div className="kpi-meta">
               <span className="kpi-card-value">{kpis.totalMesasEsperadas.toLocaleString()}</span>
-              <span className="kpi-card-label">TOTAL MESAS ESPERADAS</span>
+              <span className="kpi-card-label">TOTAL DE MESAS POR COORDINADOR</span>
             </div>
           </div>
 

@@ -128,10 +128,10 @@ class SqlSchoolsRepository {
       };
     });
 
-    let totalExpectedMesas = 3648;
+    let totalExpectedMesas = 29121;
     try {
-      const totalExpectedMesasRes = await query('SELECT COALESCE(SUM(num_mesas), 3648)::int AS total_mesas FROM colegios');
-      totalExpectedMesas = totalExpectedMesasRes.rows[0]?.total_mesas || 3648;
+      const totalExpectedMesasRes = await query('SELECT COALESCE(SUM(num_mesas), 0)::int AS total_mesas FROM colegios');
+      totalExpectedMesas = totalExpectedMesasRes.rows[0]?.total_mesas || 29121;
     } catch (_) {}
 
     return {

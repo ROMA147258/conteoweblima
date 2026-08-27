@@ -204,7 +204,14 @@ export const FilterPanel = () => {
         <label className="filter-label">Partido</label>
         <div className={`filt-dropdown ${openDropdown === 'partido' ? 'open' : ''}`}>
           <div className="filt-dropdown-toggle" onClick={() => toggleDropdown('partido')}>
-            <span className="filt-selected-text">
+            <span className="filt-selected-text" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {filters.partido && PARTIES[filters.partido]?.symbol && (
+                <img
+                  src={PARTIES[filters.partido].symbol}
+                  alt=""
+                  style={{ width: 16, height: 16, objectFit: 'contain', borderRadius: 2 }}
+                />
+              )}
               {filters.partido ? (PARTIES[filters.partido]?.label || filters.partido) : 'Todos los partidos'}
             </span>
             <span className="filt-arrow">▾</span>
@@ -223,9 +230,18 @@ export const FilterPanel = () => {
                     key={k}
                     className={filters.partido === k ? 'selected' : ''}
                     onClick={() => handleSelect('partido', k)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
                   >
-                    <span className="filt-partido-dot" style={{ background: p.color }}></span>
-                    {p.label}
+                    {p.symbol ? (
+                      <img
+                        src={p.symbol}
+                        alt={p.label}
+                        style={{ width: 18, height: 18, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <span className="filt-partido-dot" style={{ background: p.color, flexShrink: 0 }}></span>
+                    )}
+                    <span>{p.label}</span>
                   </li>
                 ))}
               </ul>

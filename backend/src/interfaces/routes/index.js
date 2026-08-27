@@ -71,6 +71,55 @@ function createApiRouter() {
   router.use('/attendance', createAttendanceRoutes(attendanceController));
   router.use('/health', createHealthRoutes(healthController));
 
+  // ── Endpoint /locations — provs, distritos y colegios sincronizados ──
+  router.get('/locations', async (req, res) => {
+    try {
+      const rows = await schoolsRepo.getAllSchools({});
+      const provsMap = new Map();
+      const distsSet = new Set();
+      const colegiosPorDist = {};
+
+      rows.forEach(r => {
+        const prov = (r.provincia || 'LIMA').trim();
+        const dist = (r.distrito || '').trim();
+        const col = (r.colegio || '').trim();
+
+        if (!provsMap.has(prov)) {
+          provsMap.set(prov, new Set());
+        }
+        if (dist) {
+          provsMap.get(prov).add(dist);
+          distsSet.add(dist);
+          if (!colegiosPorDist[dist]) {
+            colegiosPorDist[dist] = [];
+          }
+          if (col && !colegiosPorDist[dist].includes(col)) {
+            colegiosPorDist[dist].push(col);
+          }
+        }
+      });
+
+      const provincias = Array.from(provsMap.entries()).map(([name, distSet]) => ({
+        id: name.toLowerCase().replace(/\s+/g, '-'),
+        name,
+        distritos: Array.from(distSet).sort()
+      })).sort((a, b) => a.name.localeCompare(b.name));
+
+      const allDistritos = Array.from(distsSet).sort();
+
+      res.json({
+        success: true,
+        data: {
+          provincias,
+          distritos: allDistritos,
+          colegiosPorDistrito: colegiosPorDist
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // ── Alias /login → /auth/login (compatibilidad con web/) ──
   router.post('/login', (req, res, next) => authController.login(req, res, next));
   router.post('/logout', (req, res, next) => authController.logout(req, res, next));

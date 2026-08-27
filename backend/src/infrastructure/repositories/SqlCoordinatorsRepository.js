@@ -34,55 +34,38 @@ class SqlCoordinatorsRepository {
           'Coordinador de Local' AS tipo_coordinador
         FROM rcoordinadores
         WHERE dni IS NOT NULL AND dni != ''
-        UNION ALL
-        SELECT 
-          id,
-          nombres_y_apellidos AS coordinador_nombre,
-          dni AS coordinador_dni,
-          COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito,
-          COALESCE(NULLIF(TRIM(local_de_votacion_asignado), ''), NULLIF(TRIM(local_de_votacion), ''), '') AS "local",
-          'Coordinador Distrital' AS tipo_coordinador
-        FROM rcoordinadoresd
-        WHERE dni IS NOT NULL AND dni != ''
-        UNION ALL
-        SELECT 
-          id,
-          nombres_y_apellidos AS coordinador_nombre,
-          dni AS coordinador_dni,
-          COALESCE(NULLIF(TRIM(distrito_asignado), ''), NULLIF(TRIM(distrito_donde_vota), ''), 'LIMA') AS distrito,
-          COALESCE(NULLIF(TRIM(local_de_votacion_asignado), ''), NULLIF(TRIM(local_de_votacion), ''), '') AS "local",
-          'Coordinador Zonal' AS tipo_coordinador
-        FROM rcoordinadoresz
-        WHERE dni IS NOT NULL AND dni != ''
-        UNION ALL
-        SELECT 
-          id,
-          nombre AS coordinador_nombre,
-          dni AS coordinador_dni,
-          COALESCE(NULLIF(TRIM(ubicacion), ''), 'LIMA') AS distrito,
-          COALESCE(NULLIF(TRIM(colegio), ''), '') AS "local",
-          'Coordinador' AS tipo_coordinador
-        FROM usuarios1
-        WHERE dni IS NOT NULL AND dni != ''
       ),
-      all_personeros AS (
+      filtered_coordinadores AS (
+        SELECT * FROM all_coordinadores c
+        ${whereClause}
+      ),
+      verificaciones AS (
+        SELECT 
+          cv.coordinador_dni,
+          cv.personero_dni,
+          cv.personero_nombre,
+          cv.distrito,
+          cv.local,
+          cv.confirmacion,
+          cv.foto_url,
+          cv.fecha_hora,
+          a.mesa
+        FROM coordinadores cv
+        LEFT JOIN asistencia a ON cv.personero_dni = a.dni
+      ),
+      personeros_padron AS (
         SELECT 
           p.dni AS personero_dni,
           p.nombres_y_apellidos AS personero_nombre,
           COALESCE(NULLIF(TRIM(p.distrito_asignado), ''), NULLIF(TRIM(p.distrito_donde_vota), ''), 'LIMA') AS distrito,
           COALESCE(NULLIF(TRIM(p.local_de_votacion_asignado), ''), NULLIF(TRIM(p.local_de_votacion), ''), '') AS "local",
-          COALESCE(NULLIF(TRIM(p.mesa_asignada), ''), NULLIF(TRIM(p.mesa_de_sufragio), ''), '') AS mesa
+          COALESCE(NULLIF(TRIM(p.mesa_asignada), ''), NULLIF(TRIM(p.mesa_de_sufragio), ''), '') AS mesa,
+          COALESCE(a.confirmacion, 'PENDIENTE') AS confirmacion,
+          COALESCE(a.foto_url, '') AS foto_url,
+          a.fecha_hora
         FROM rpersoneros p
+        LEFT JOIN asistencia a ON p.dni = a.dni
         WHERE p.dni IS NOT NULL AND p.dni != ''
-        UNION
-        SELECT 
-          u.dni AS personero_dni,
-          u.nombre AS personero_nombre,
-          COALESCE(NULLIF(TRIM(u.ubicacion), ''), 'LIMA') AS distrito,
-          COALESCE(NULLIF(TRIM(u.colegio), ''), '') AS "local",
-          COALESCE(NULLIF(TRIM(u.mesa), ''), '') AS mesa
-        FROM usuarios u
-        WHERE u.dni IS NOT NULL AND u.dni != '' AND u.dni NOT ILIKE '%Admin%'
       )
       SELECT 
         c.id,
@@ -91,24 +74,60 @@ class SqlCoordinatorsRepository {
         c.distrito,
         c.local,
         c.tipo_coordinador AS "tipoCoordinador",
-        COALESCE(p.personero_nombre, cv.personero_nombre, '') AS "personeroNombre",
-        COALESCE(p.personero_dni, cv.personero_dni, '') AS "personeroDni",
-        COALESCE(p.mesa, a.mesa, '') AS mesa,
-        COALESCE(cv.confirmacion, a.confirmacion, 'PENDIENTE') AS confirmacion,
-        COALESCE(cv.foto_url, a.foto_url, '') AS foto_url,
-        COALESCE(cv.fecha_hora, a.fecha_hora) AS "fechaHora"
-      FROM all_coordinadores c
-      LEFT JOIN all_personeros p ON (
-        (c.local != '' AND p.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(p.local)))
-        OR (c.distrito != '' AND LOWER(TRIM(c.distrito)) = LOWER(TRIM(p.distrito)))
+        v.personero_nombre AS "personeroNombre",
+        v.personero_dni AS "personeroDni",
+        COALESCE(v.mesa, '') AS mesa,
+        v.confirmacion AS confirmacion,
+        v.foto_url AS foto_url,
+        v.fecha_hora AS "fechaHora"
+      FROM filtered_coordinadores c
+      INNER JOIN verificaciones v ON (
+        v.coordinador_dni = c.coordinador_dni
+        OR (c.local != '' AND v.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(v.local)))
       )
-      LEFT JOIN coordinadores cv ON (
-        (p.personero_dni IS NOT NULL AND cv.personero_dni = p.personero_dni)
-        OR (cv.coordinador_dni = c.coordinador_dni)
+      UNION
+      SELECT 
+        c.id,
+        c.coordinador_nombre AS "coordinadorNombre",
+        c.coordinador_dni AS "coordinadorDni",
+        c.distrito,
+        c.local,
+        c.tipo_coordinador AS "tipoCoordinador",
+        p.personero_nombre AS "personeroNombre",
+        p.personero_dni AS "personeroDni",
+        p.mesa AS mesa,
+        p.confirmacion AS confirmacion,
+        p.foto_url AS foto_url,
+        p.fecha_hora AS "fechaHora"
+      FROM filtered_coordinadores c
+      INNER JOIN personeros_padron p ON (
+        c.local != '' AND p.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(p.local))
       )
-      LEFT JOIN asistencia a ON (p.personero_dni IS NOT NULL AND a.dni = p.personero_dni)
-      ${whereClause}
-      ORDER BY c.distrito ASC, c.coordinador_nombre ASC
+      WHERE NOT EXISTS (
+        SELECT 1 FROM verificaciones v WHERE v.personero_dni = p.personero_dni AND v.coordinador_dni = c.coordinador_dni
+      )
+      UNION
+      SELECT 
+        c.id,
+        c.coordinador_nombre AS "coordinadorNombre",
+        c.coordinador_dni AS "coordinadorDni",
+        c.distrito,
+        c.local,
+        c.tipo_coordinador AS "tipoCoordinador",
+        '' AS "personeroNombre",
+        '' AS "personeroDni",
+        '' AS mesa,
+        'PENDIENTE' AS confirmacion,
+        '' AS foto_url,
+        NULL AS "fechaHora"
+      FROM filtered_coordinadores c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM verificaciones v WHERE v.coordinador_dni = c.coordinador_dni OR (c.local != '' AND v.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(v.local)))
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM personeros_padron p WHERE c.local != '' AND p.local != '' AND LOWER(TRIM(c.local)) = LOWER(TRIM(p.local))
+      )
+      ORDER BY "coordinadorNombre" ASC
     `;
 
     try {
@@ -159,15 +178,9 @@ class SqlCoordinatorsRepository {
       const [mesasTotalRes, coordsPadronRes, coordsConfirmadosRes] = await Promise.all([
         query(`SELECT COALESCE(SUM(num_mesas), 0)::int AS total_mesas FROM colegios ${clauseColegios}`, params),
         query(`
-          SELECT COUNT(DISTINCT dni)::int AS total_coords FROM (
-            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadores
-            UNION
-            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadoresd
-            UNION
-            SELECT dni, distrito_asignado, distrito_donde_vota, local_de_votacion_asignado, local_de_votacion FROM rcoordinadoresz
-            UNION
-            SELECT dni, ubicacion AS distrito_asignado, ubicacion AS distrito_donde_vota, colegio AS local_de_votacion_asignado, colegio AS local_de_votacion FROM usuarios1 WHERE dni IS NOT NULL AND dni != ''
-          ) all_c ${clauseCoords}
+          SELECT COUNT(DISTINCT dni)::int AS total_coords 
+          FROM rcoordinadores
+          ${clauseCoords}
         `, params),
         query(`
           SELECT COUNT(DISTINCT coordinador_dni)::int AS coords_confirmados 
@@ -219,6 +232,15 @@ class SqlCoordinatorsRepository {
 
     await query(sql, params);
     return { success: true, message: 'Verificación de coordinador guardada en PostgreSQL.' };
+  }
+
+  async getColegiosList() {
+    try {
+      const res = await query('SELECT distrito, colegio, num_mesas FROM colegios');
+      return res.rows || [];
+    } catch (_) {
+      return [];
+    }
   }
 }
 

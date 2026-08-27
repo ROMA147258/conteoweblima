@@ -139,10 +139,10 @@ export const MapView = () => {
     }
   }, [mapData, filters.distrito]);
 
-  const totalMesasEsp = mapData?.totalMesasEsperadas || 3648;
-  const totalMesasEsc = mapData?.totalMesasEscrutadas || 1;
-  const totalVotos = mapData?.totalVotos || 8;
-  const avancePct = ((totalMesasEsc / totalMesasEsp) * 100).toFixed(1);
+  const totalMesasEsp = mapData?.totalMesasEsperadas || 29121;
+  const totalMesasEsc = mapData?.totalMesasEscrutadas || 0;
+  const totalVotos = mapData?.totalVotos || 0;
+  const avancePct = totalMesasEsp > 0 ? ((totalMesasEsc / totalMesasEsp) * 100).toFixed(1) : '0.0';
 
   return (
     <section className="view active" id="view-mapa">
