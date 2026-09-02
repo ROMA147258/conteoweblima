@@ -5,8 +5,8 @@ import { useTheme } from '../../context/ThemeContext';
 import '../../styles/login.css';
 
 export const LoginView = () => {
-  const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin2026');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -82,7 +82,8 @@ export const LoginView = () => {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
+                placeholder="Ingresa tu usuario"
+                autoComplete="username"
                 required
               />
             </div>
@@ -100,7 +101,8 @@ export const LoginView = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
+                placeholder="Ingresa tu contraseña"
+                autoComplete="current-password"
                 required
               />
             </div>
