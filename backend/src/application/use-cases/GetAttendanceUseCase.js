@@ -18,6 +18,8 @@ class GetAttendanceUseCase {
         enviosManual: aggregates.enviosManual || 0,
         enviosImagen: aggregates.enviosImagen || 0,
         enviosAmbos: aggregates.enviosAmbos || 0,
+        enviosSoloManual: aggregates.enviosSoloManual || 0,
+        enviosSoloImagen: aggregates.enviosSoloImagen || 0,
         sinEnvio: aggregates.sinEnvio || 0
       },
       charts: {

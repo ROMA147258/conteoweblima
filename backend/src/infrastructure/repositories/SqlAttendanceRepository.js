@@ -281,6 +281,8 @@ class SqlAttendanceRepository {
       enviosManual: countManual,
       enviosImagen: countImagen,
       enviosAmbos: countAmbos,
+      enviosSoloManual: Math.max(0, countManual - countAmbos),
+      enviosSoloImagen: Math.max(0, countImagen - countAmbos),
       sinEnvio: Math.max(0, totalPersoneros - (countManual + countImagen - countAmbos))
     };
   }

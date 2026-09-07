@@ -20,9 +20,10 @@ export const AttendanceView = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Filtros locales para la tabla de personeros
+  // Filtros locales para la tabla de personeros (Sin redundancia)
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('todos');
+  const [asistenciaFilter, setAsistenciaFilter] = useState('todos');
+  const [enviosFilter, setEnviosFilter] = useState('todos');
   const [selectedPhoto, setSelectedPhoto] = useState(null);
 
   useEffect(() => {
@@ -47,7 +48,11 @@ export const AttendanceView = () => {
     totalPersonerosRegistrados: 0,
     primeraAsistencia: 0,
     segundaAsistencia: 0,
-    distritosConReporte: 0
+    distritosConReporte: 0,
+    enviosAmbos: 0,
+    enviosSoloManual: 0,
+    enviosSoloImagen: 0,
+    sinEnvio: 0
   };
 
   const conf1 = data?.charts?.conf1Global?.confirmados || 0;
@@ -142,7 +147,7 @@ export const AttendanceView = () => {
     }
   };
 
-  // Filtrado de personeros en la tabla
+  // Filtrado de personeros en la tabla (Sin redundancia)
   const personerosList = data?.registros || [];
   const filteredPersoneros = personerosList.filter(p => {
     const term = searchTerm.toLowerCase().trim();
@@ -160,18 +165,18 @@ export const AttendanceView = () => {
     const isConf2 = p.confirmacion2 === 'CONFIRMADO';
     const isMan = p.envioManual === 'ENVIADO';
     const isImg = p.envioImagen === 'ENVIADO';
-    const isAmbos = isMan && isImg;
 
-    if (statusFilter === 'conf1') return isConf1;
-    if (statusFilter === 'conf2') return isConf2;
-    if (statusFilter === 'ambas') return isConf1 && isConf2;
-    if (statusFilter === 'pendientes_asistencia') return !isConf1 && !isConf2;
-    if (statusFilter === 'manual') return isMan;
-    if (statusFilter === 'imagen') return isImg;
-    if (statusFilter === 'ambos_envios') return isAmbos;
-    if (statusFilter === 'solo_manual') return isMan && !isImg;
-    if (statusFilter === 'solo_imagen') return !isMan && isImg;
-    if (statusFilter === 'sin_envio') return !isMan && !isImg;
+    // 1. Filtro de Asistencia
+    if (asistenciaFilter === 'conf1' && !isConf1) return false;
+    if (asistenciaFilter === 'conf2' && !isConf2) return false;
+    if (asistenciaFilter === 'ambas' && (!isConf1 || !isConf2)) return false;
+    if (asistenciaFilter === 'sin_asistencia' && (isConf1 || isConf2)) return false;
+
+    // 2. Filtro de Envíos de Actas (Excluyentes y sin redundancia)
+    if (enviosFilter === 'ambos' && (!isMan || !isImg)) return false;
+    if (enviosFilter === 'solo_manual' && (!isMan || isImg)) return false;
+    if (enviosFilter === 'solo_imagen' && (isMan || !isImg)) return false;
+    if (enviosFilter === 'sin_envio' && (isMan || isImg)) return false;
 
     return true;
   });
@@ -206,6 +211,14 @@ export const AttendanceView = () => {
     window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
+  const hasActiveFilters = searchTerm !== '' || asistenciaFilter !== 'todos' || enviosFilter !== 'todos';
+
+  const resetAllFilters = () => {
+    setSearchTerm('');
+    setAsistenciaFilter('todos');
+    setEnviosFilter('todos');
+  };
+
   return (
     <section className="view active" id="view-apertura">
       <div className="view-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -218,12 +231,14 @@ export const AttendanceView = () => {
       </div>
 
       <div className="dashboard-scroll" style={{ overflowY: 'auto', flex: 1, padding: '0.875rem 1.25rem' }}>
-        {/* KPI Row (6 Tarjetas Informativas y Clicables) */}
-        <div className="kpi-row-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.65rem', marginBottom: '1.25rem' }}>
+        {/* KPI Row (7 Tarjetas Informativas y Clicables sin Redundancia) */}
+        <div className="kpi-row-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '1.25rem' }}>
+          {/* 1. Total Personeros */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#1565c0', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'todos' ? '2px solid #1565c0' : '1px solid var(--border)' }}
-            onClick={() => setStatusFilter('todos')}
+            style={{ '--kpi-color': '#1565c0', padding: '0.75rem 0.85rem', cursor: 'pointer', border: (asistenciaFilter === 'todos' && enviosFilter === 'todos') ? '2px solid #1565c0' : '1px solid var(--border)' }}
+            onClick={resetAllFilters}
+            title="Mostrar todos los personeros"
           >
             <span className="kpi-icon">👥</span>
             <div className="kpi-meta">
@@ -232,63 +247,87 @@ export const AttendanceView = () => {
             </div>
           </div>
 
+          {/* 2. 1ª Asistencia (Foto) */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#059669', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'conf1' ? '2px solid #059669' : '1px solid var(--border)' }}
-            onClick={() => setStatusFilter('conf1')}
+            style={{ '--kpi-color': '#059669', padding: '0.75rem 0.85rem', cursor: 'pointer', border: asistenciaFilter === 'conf1' ? '2px solid #059669' : '1px solid var(--border)', background: asistenciaFilter === 'conf1' ? 'rgba(5, 150, 105, 0.08)' : 'var(--surface)' }}
+            onClick={() => { setAsistenciaFilter('conf1'); setEnviosFilter('todos'); }}
+            title="Filtrar personeros con 1ª Asistencia (Foto)"
           >
             <span className="kpi-icon">🌅</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value">{kpis.primeraAsistencia.toLocaleString()}</span>
+              <span className="kpi-card-value" style={{ color: '#059669' }}>{kpis.primeraAsistencia.toLocaleString()}</span>
               <span className="kpi-card-label">1ª ASIST. (FOTO)</span>
             </div>
           </div>
 
+          {/* 3. 2ª Asistencia (GPS) */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#0284c7', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'conf2' ? '2px solid #0284c7' : '1px solid var(--border)' }}
-            onClick={() => setStatusFilter('conf2')}
+            style={{ '--kpi-color': '#0284c7', padding: '0.75rem 0.85rem', cursor: 'pointer', border: asistenciaFilter === 'conf2' ? '2px solid #0284c7' : '1px solid var(--border)', background: asistenciaFilter === 'conf2' ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface)' }}
+            onClick={() => { setAsistenciaFilter('conf2'); setEnviosFilter('todos'); }}
+            title="Filtrar personeros con 2ª Asistencia (GPS)"
           >
             <span className="kpi-icon">📍</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value">{kpis.segundaAsistencia.toLocaleString()}</span>
+              <span className="kpi-card-value" style={{ color: '#0284c7' }}>{kpis.segundaAsistencia.toLocaleString()}</span>
               <span className="kpi-card-label">2ª ASIST. (GPS)</span>
             </div>
           </div>
 
+          {/* 4. Envíos Completos (2/2) */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#10b981', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'ambos_envios' ? '2px solid #10b981' : '1px solid var(--border)', background: statusFilter === 'ambos_envios' ? 'rgba(16, 185, 129, 0.1)' : 'var(--surface)' }}
-            onClick={() => setStatusFilter('ambos_envios')}
+            style={{ '--kpi-color': '#10b981', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'ambos' ? '2px solid #10b981' : '1px solid var(--border)', background: enviosFilter === 'ambos' ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface)' }}
+            onClick={() => { setEnviosFilter('ambos'); setAsistenciaFilter('todos'); }}
+            title="Filtrar personeros con ambos envíos completados (Manual + Foto)"
           >
-            <span className="kpi-icon">✅</span>
+            <span className="kpi-icon">🟢</span>
             <div className="kpi-meta">
               <span className="kpi-card-value" style={{ color: '#10b981' }}>{(kpis.enviosAmbos || 0).toLocaleString()}</span>
-              <span className="kpi-card-label">AMBOS ENVÍOS (2/2)</span>
+              <span className="kpi-card-label">COMPLETO (2/2)</span>
             </div>
           </div>
 
+          {/* 5. Falta Foto (Solo Manual) */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#f59e0b', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'manual' ? '2px solid #f59e0b' : '1px solid var(--border)' }}
-            onClick={() => setStatusFilter('manual')}
+            style={{ '--kpi-color': '#f59e0b', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'solo_manual' ? '2px solid #f59e0b' : '1px solid var(--border)', background: enviosFilter === 'solo_manual' ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface)' }}
+            onClick={() => { setEnviosFilter('solo_manual'); setAsistenciaFilter('todos'); }}
+            title="Filtrar personeros que enviaron manual pero les falta subir la foto"
           >
-            <span className="kpi-icon">📝</span>
+            <span className="kpi-icon">🟡</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value" style={{ color: '#f59e0b' }}>{(kpis.enviosManual || 0).toLocaleString()}</span>
-              <span className="kpi-card-label">ENVÍO MANUAL</span>
+              <span className="kpi-card-value" style={{ color: '#f59e0b' }}>{(kpis.enviosSoloManual || 0).toLocaleString()}</span>
+              <span className="kpi-card-label">FALTA FOTO (1/2)</span>
             </div>
           </div>
 
+          {/* 6. Falta Manual (Solo Foto) */}
           <div
             className="kpi-card-pro"
-            style={{ '--kpi-color': '#3b82f6', padding: '0.75rem 0.85rem', cursor: 'pointer', border: statusFilter === 'imagen' ? '2px solid #3b82f6' : '1px solid var(--border)' }}
-            onClick={() => setStatusFilter('imagen')}
+            style={{ '--kpi-color': '#3b82f6', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'solo_imagen' ? '2px solid #3b82f6' : '1px solid var(--border)', background: enviosFilter === 'solo_imagen' ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface)' }}
+            onClick={() => { setEnviosFilter('solo_imagen'); setAsistenciaFilter('todos'); }}
+            title="Filtrar personeros que subieron foto pero les falta digitar manual"
           >
-            <span className="kpi-icon">📸</span>
+            <span className="kpi-icon">🔵</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value" style={{ color: '#3b82f6' }}>{(kpis.enviosImagen || 0).toLocaleString()}</span>
-              <span className="kpi-card-label">ENVÍO FOTO / OCR</span>
+              <span className="kpi-card-value" style={{ color: '#3b82f6' }}>{(kpis.enviosSoloImagen || 0).toLocaleString()}</span>
+              <span className="kpi-card-label">FALTA MANUAL (1/2)</span>
+            </div>
+          </div>
+
+          {/* 7. Sin Envíos (0/2) */}
+          <div
+            className="kpi-card-pro"
+            style={{ '--kpi-color': '#ef4444', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'sin_envio' ? '2px solid #ef4444' : '1px solid var(--border)', background: enviosFilter === 'sin_envio' ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface)' }}
+            onClick={() => { setEnviosFilter('sin_envio'); setAsistenciaFilter('todos'); }}
+            title="Filtrar personeros sin ningún envío de actas aún"
+          >
+            <span className="kpi-icon">🔴</span>
+            <div className="kpi-meta">
+              <span className="kpi-card-value" style={{ color: '#ef4444' }}>{(kpis.sinEnvio || 0).toLocaleString()}</span>
+              <span className="kpi-card-label">SIN ENVÍO (0/2)</span>
             </div>
           </div>
         </div>
@@ -377,35 +416,70 @@ export const AttendanceView = () => {
                 }}
               />
 
+              {/* Filtro 1: Asistencia */}
               <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                value={asistenciaFilter}
+                onChange={(e) => setAsistenciaFilter(e.target.value)}
                 style={{
                   background: 'var(--bg2)',
-                  border: '1px solid var(--border)',
+                  border: asistenciaFilter !== 'todos' ? '1px solid var(--primary)' : '1px solid var(--border)',
                   color: 'var(--text)',
                   padding: '6px 10px',
                   borderRadius: '6px',
                   fontSize: '0.8rem',
                   fontWeight: 600
                 }}
+                title="Filtrar por estado de asistencia"
               >
-                <option value="todos">Todos los Personeros</option>
-                <optgroup label="── Estado de Asistencia ──">
-                  <option value="conf1">1ª Asistencia (Foto)</option>
-                  <option value="conf2">2ª Asistencia (GPS)</option>
-                  <option value="ambas">Ambas Asistencias Confirmadas</option>
-                  <option value="pendientes_asistencia">Asistencia Pendiente</option>
-                </optgroup>
-                <optgroup label="── Estado de Envíos de Actas ──">
-                  <option value="ambos_envios">✅ Ambos Envíos (Manual + Imagen)</option>
-                  <option value="manual">📝 Con Envío Manual</option>
-                  <option value="imagen">📸 Con Envío Imagen / OCR</option>
-                  <option value="solo_manual">🟡 Solo Manual (Falta Foto)</option>
-                  <option value="solo_imagen">🔵 Solo Imagen (Falta Manual)</option>
-                  <option value="sin_envio">🔴 Sin Ningún Envío de Actas</option>
-                </optgroup>
+                <option value="todos">📋 Asistencia: Todos</option>
+                <option value="conf1">🌅 1ª Conf. (Foto)</option>
+                <option value="conf2">📍 2ª Conf. (GPS)</option>
+                <option value="ambas">✅ Ambas Confirmadas (Foto + GPS)</option>
+                <option value="sin_asistencia">⏳ Sin Asistencia (Pendiente)</option>
               </select>
+
+              {/* Filtro 2: Envíos de Actas (Sin Redundancia) */}
+              <select
+                value={enviosFilter}
+                onChange={(e) => setEnviosFilter(e.target.value)}
+                style={{
+                  background: 'var(--bg2)',
+                  border: enviosFilter !== 'todos' ? '1px solid var(--primary)' : '1px solid var(--border)',
+                  color: 'var(--text)',
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600
+                }}
+                title="Filtrar por estado de transmisión de actas"
+              >
+                <option value="todos">📦 Envíos: Todos</option>
+                <option value="ambos">🟢 Completo (Manual + Foto)</option>
+                <option value="solo_manual">🟡 Solo Manual (Falta Foto)</option>
+                <option value="solo_imagen">🔵 Solo Foto / OCR (Falta Manual)</option>
+                <option value="sin_envio">🔴 Sin Envíos de Actas (0/2)</option>
+              </select>
+
+              {/* Botón Reset si hay filtros aplicados */}
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444',
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title="Restablecer todos los filtros y búsqueda"
+                >
+                  ✖ Limpiar
+                </button>
+              )}
             </div>
           </div>
 
