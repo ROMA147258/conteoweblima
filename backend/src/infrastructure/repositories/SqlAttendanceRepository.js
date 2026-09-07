@@ -51,6 +51,26 @@ class SqlAttendanceRepository {
           dni, latitud, longitud, distancia_metros, radio_permitido, estado, fecha_registro
         FROM asistenciallegada
         ORDER BY dni, fecha_registro DESC
+      ),
+      votos_manual AS (
+        SELECT DISTINCT ON (TRIM(dni))
+          TRIM(dni) AS dni,
+          numero_mesa,
+          fecha_hora AS fecha_manual,
+          COALESCE(p_total_votos, 0) + COALESCE(d_total_votos, 0) AS total_manual
+        FROM votos_detalle
+        WHERE UPPER(TRIM(origen)) = 'MANUAL' AND dni IS NOT NULL AND TRIM(dni) != ''
+        ORDER BY TRIM(dni), fecha_hora DESC
+      ),
+      votos_imagen AS (
+        SELECT DISTINCT ON (TRIM(dni))
+          TRIM(dni) AS dni,
+          numero_mesa,
+          fecha_hora AS fecha_imagen,
+          COALESCE(p_total_votos, 0) + COALESCE(d_total_votos, 0) AS total_imagen
+        FROM votos_detalle
+        WHERE UPPER(TRIM(origen)) IN ('IMAGEN', 'OCR') AND dni IS NOT NULL AND TRIM(dni) != ''
+        ORDER BY TRIM(dni), fecha_hora DESC
       )
       SELECT 
         p.dni,
@@ -76,10 +96,24 @@ class SqlAttendanceRepository {
         CASE 
           WHEN al.dni IS NOT NULL OR (a.ubicacion_gps IS NOT NULL AND a.ubicacion_gps != '') THEN 'CONFIRMADO'
           ELSE 'PENDIENTE'
-        END AS confirmacion2
+        END AS confirmacion2,
+        CASE WHEN vm.dni IS NOT NULL THEN 'ENVIADO' ELSE 'PENDIENTE' END AS "envioManual",
+        vm.fecha_manual AS "fechaManual",
+        COALESCE(vm.total_manual, 0) AS "votosManual",
+        CASE WHEN vi.dni IS NOT NULL THEN 'ENVIADO' ELSE 'PENDIENTE' END AS "envioImagen",
+        vi.fecha_imagen AS "fechaImagen",
+        COALESCE(vi.total_imagen, 0) AS "votosImagen",
+        CASE
+          WHEN vm.dni IS NOT NULL AND vi.dni IS NOT NULL THEN 'AMBOS'
+          WHEN vm.dni IS NOT NULL AND vi.dni IS NULL THEN 'SOLO_MANUAL'
+          WHEN vm.dni IS NULL AND vi.dni IS NOT NULL THEN 'SOLO_IMAGEN'
+          ELSE 'SIN_ENVIO'
+        END AS "estadoEnvio"
       FROM base_personeros p
       LEFT JOIN asistencia a ON p.dni = a.dni
       LEFT JOIN llegadas_recent al ON p.dni = al.dni
+      LEFT JOIN votos_manual vm ON p.dni = vm.dni
+      LEFT JOIN votos_imagen vi ON p.dni = vi.dni
       ${whereClause}
       ORDER BY p.nombre ASC
     `;
@@ -103,6 +137,9 @@ class SqlAttendanceRepository {
     let conf1 = 0;
     let conf2 = 0;
     let distritosConReporte = 0;
+    let countManual = 0;
+    let countImagen = 0;
+    let countAmbos = 0;
     const porDistrito1 = {};
     const porDistrito2 = {};
 
@@ -202,6 +239,32 @@ class SqlAttendanceRepository {
         if (r.distrito) porDistrito2[r.distrito] = r.confirmados;
       });
 
+      // 7. Envíos de Actas (Manual vs Imagen / OCR)
+      try {
+        const transSql = `
+          WITH personeros_ambit AS (
+            SELECT DISTINCT TRIM(dni) AS dni FROM rpersoneros WHERE dni IS NOT NULL AND TRIM(dni) != ''
+          ),
+          v_man AS (
+            SELECT DISTINCT TRIM(dni) AS dni FROM votos_detalle WHERE UPPER(TRIM(origen)) = 'MANUAL' AND dni IS NOT NULL AND TRIM(dni) != ''
+          ),
+          v_img AS (
+            SELECT DISTINCT TRIM(dni) AS dni FROM votos_detalle WHERE UPPER(TRIM(origen)) IN ('IMAGEN', 'OCR') AND dni IS NOT NULL AND TRIM(dni) != ''
+          )
+          SELECT 
+            COUNT(DISTINCT v_man.dni)::int AS manual_count,
+            COUNT(DISTINCT v_img.dni)::int AS imagen_count,
+            COUNT(DISTINCT CASE WHEN v_man.dni IS NOT NULL AND v_img.dni IS NOT NULL THEN p.dni END)::int AS ambos_count
+          FROM personeros_ambit p
+          LEFT JOIN v_man ON p.dni = v_man.dni
+          LEFT JOIN v_img ON p.dni = v_img.dni
+        `;
+        const transRes = await query(transSql);
+        countManual = transRes.rows[0]?.manual_count || 0;
+        countImagen = transRes.rows[0]?.imagen_count || 0;
+        countAmbos = transRes.rows[0]?.ambos_count || 0;
+      } catch (_) {}
+
     } catch (err) {
       console.error('[getAggregates Error]:', err.message);
     }
@@ -214,7 +277,11 @@ class SqlAttendanceRepository {
       porDistrito1: porDistrito1,
       porDistrito2: porDistrito2,
       faltantesPrimera: Math.max(0, totalPersoneros - conf1),
-      faltantesSegunda: Math.max(0, totalPersoneros - conf2)
+      faltantesSegunda: Math.max(0, totalPersoneros - conf2),
+      enviosManual: countManual,
+      enviosImagen: countImagen,
+      enviosAmbos: countAmbos,
+      sinEnvio: Math.max(0, totalPersoneros - (countManual + countImagen - countAmbos))
     };
   }
 

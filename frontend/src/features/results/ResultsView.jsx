@@ -68,12 +68,12 @@ export const ResultsView = () => {
   // Gráficos globales cuando NO hay filtro de partido
   const createGlobalChartData = (votesObj = {}) => {
     const activeKeys = PARTY_KEYS.filter(k => {
-      const v = votesObj[k] || (k === 'SP' ? votesObj['SOMOS PERU'] : 0) || 0;
-      return v > 0 || ['FP', 'JP', 'SP', 'FREPAP', 'VERDE', 'MORADO', 'RP', 'AN', 'AVANZA', 'PODEMOS', 'AP', 'NULOS', 'VACIOS', 'IMPUGNADOS'].includes(k);
+      const v = votesObj[k] || (k === 'SP' ? votesObj['SOMOS PERU'] : 0) || (k === 'BLANCOS' ? (votesObj.BLANCOS ?? votesObj.VACIOS ?? 0) : 0) || 0;
+      return v > 0 || ['FP', 'JP', 'SP', 'FREPAP', 'VERDE', 'MORADO', 'RP', 'AN', 'AVANZA', 'PODEMOS', 'AP', 'NULOS', 'BLANCOS', 'IMPUGNADOS'].includes(k);
     });
 
     const labels = activeKeys.map(k => PARTIES[k]?.short || k);
-    const partyData = activeKeys.map(k => votesObj[k] || (k === 'SP' ? votesObj['SOMOS PERU'] : 0) || 0);
+    const partyData = activeKeys.map(k => votesObj[k] || (k === 'SP' ? votesObj['SOMOS PERU'] : 0) || (k === 'BLANCOS' ? (votesObj.BLANCOS ?? votesObj.VACIOS ?? 0) : 0) || 0);
     const backgroundColors = activeKeys.map(k => PARTIES[k]?.color || '#94a3b8');
 
     return {
@@ -120,7 +120,7 @@ export const ResultsView = () => {
   const createPartyShareDoughnutData = (pKey) => {
     const partyProv = (manualProv[pKey] || 0) + (ocrProv[pKey] || 0);
     const nulos = (manualProv.NULOS || 0) + (ocrProv.NULOS || 0);
-    const blancos = (manualProv.VACIOS || 0) + (ocrProv.VACIOS || 0);
+    const blancos = (manualProv.BLANCOS ?? manualProv.VACIOS ?? 0) + (ocrProv.BLANCOS ?? ocrProv.VACIOS ?? 0);
     const impugnados = (manualProv.IMPUGNADOS || 0) + (ocrProv.IMPUGNADOS || 0);
     const otros = Math.max(0, totalLimaMetro - (partyProv + nulos + blancos + impugnados));
 
@@ -196,7 +196,7 @@ export const ResultsView = () => {
 
   // Partidos ordenados por votos para el ranking y píldoras del header
   const sortedParties = PARTY_KEYS
-    .filter(k => k !== 'NULOS' && k !== 'VACIOS' && k !== 'IMPUGNADOS')
+    .filter(k => k !== 'NULOS' && k !== 'BLANCOS' && k !== 'VACIOS' && k !== 'IMPUGNADOS')
     .map(k => {
       const provVotes = (manualProv[k] || 0) + (ocrProv[k] || 0);
       const distVotes = (manualDist[k] || 0) + (ocrDist[k] || 0);
@@ -226,9 +226,9 @@ export const ResultsView = () => {
     });
 
   // Datos de votos no válidos (Nulos, Blancos, Impugnados)
-  const specialVotes = ['NULOS', 'VACIOS', 'IMPUGNADOS'].map(k => {
-    const provVotes = (manualProv[k] || 0) + (ocrProv[k] || 0);
-    const distVotes = (manualDist[k] || 0) + (ocrDist[k] || 0);
+  const specialVotes = ['NULOS', 'BLANCOS', 'IMPUGNADOS'].map(k => {
+    const provVotes = (manualProv[k] ?? (k === 'BLANCOS' ? manualProv.VACIOS : 0) ?? 0) + (ocrProv[k] ?? (k === 'BLANCOS' ? ocrProv.VACIOS : 0) ?? 0);
+    const distVotes = (manualDist[k] ?? (k === 'BLANCOS' ? manualDist.VACIOS : 0) ?? 0) + (ocrDist[k] ?? (k === 'BLANCOS' ? ocrDist.VACIOS : 0) ?? 0);
     const totalParty = provVotes + distVotes;
     const pct = totalLimaMetro > 0 ? ((provVotes / totalLimaMetro) * 100) : 0;
     return {
@@ -661,7 +661,7 @@ export const ResultsView = () => {
                         <tr
                           key={p.key}
                           onClick={() => {
-                            if (p.key !== 'NULOS' && p.key !== 'VACIOS' && p.key !== 'IMPUGNADOS') {
+                            if (p.key !== 'NULOS' && p.key !== 'BLANCOS' && p.key !== 'VACIOS' && p.key !== 'IMPUGNADOS') {
                               updateFilter('partido', isSelectedRow ? '' : p.key);
                             }
                           }}
@@ -669,10 +669,10 @@ export const ResultsView = () => {
                             borderBottom: '1px solid var(--border-light, rgba(128,128,128,0.15))',
                             background: isSelectedRow ? 'var(--accent-glow)' : 'transparent',
                             outline: isSelectedRow ? `1.5px solid ${p.color}` : 'none',
-                            cursor: p.key === 'NULOS' || p.key === 'VACIOS' || p.key === 'IMPUGNADOS' ? 'default' : 'pointer',
+                            cursor: p.key === 'NULOS' || p.key === 'BLANCOS' || p.key === 'VACIOS' || p.key === 'IMPUGNADOS' ? 'default' : 'pointer',
                             transition: 'background 0.15s'
                           }}
-                          title={p.key === 'NULOS' || p.key === 'VACIOS' || p.key === 'IMPUGNADOS' ? '' : 'Haz clic para filtrar por este partido'}
+                          title={p.key === 'NULOS' || p.key === 'BLANCOS' || p.key === 'VACIOS' || p.key === 'IMPUGNADOS' ? '' : 'Haz clic para filtrar por este partido'}
                         >
                           <td style={{ padding: '8px 10px' }}>
                             {p.symbol ? (

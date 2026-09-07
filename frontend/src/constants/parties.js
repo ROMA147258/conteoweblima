@@ -173,8 +173,14 @@ export const PARTIES = {
     color: '#64748b',
     symbol: null
   },
+  BLANCOS: {
+    label: 'Votos Blancos',
+    short: 'BLANCOS',
+    color: '#94a3b8',
+    symbol: null
+  },
   VACIOS: {
-    label: 'Votos Blancos / Vacíos',
+    label: 'Votos Blancos',
     short: 'BLANCOS',
     color: '#94a3b8',
     symbol: null

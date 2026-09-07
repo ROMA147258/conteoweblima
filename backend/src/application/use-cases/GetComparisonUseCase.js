@@ -8,7 +8,7 @@ class GetComparisonUseCase {
     const sideA = raw.sideA || {};
     const sideB = raw.sideB || {};
 
-    const parties = ['FP', 'JP', 'SOMOS PERU', 'FREPAP', 'VERDE', 'MORADO', 'NULOS', 'VACIOS'];
+    const parties = ['FP', 'JP', 'SOMOS PERU', 'FREPAP', 'VERDE', 'MORADO', 'NULOS', 'BLANCOS'];
     const partyLabels = {
       FP: 'Fuerza Popular',
       JP: 'Juntos por el Perú',
@@ -17,12 +17,13 @@ class GetComparisonUseCase {
       VERDE: 'Verde',
       MORADO: 'Morado',
       NULOS: 'Nulos',
-      VACIOS: 'Vacíos'
+      BLANCOS: 'Blancos',
+      VACIOS: 'Blancos'
     };
 
     const comparativa = parties.map(p => {
-      const vA = sideA[p] || 0;
-      const vB = sideB[p] || 0;
+      const vA = sideA[p] ?? (p === 'BLANCOS' ? (sideA.BLANCOS ?? sideA.VACIOS ?? 0) : 0);
+      const vB = sideB[p] ?? (p === 'BLANCOS' ? (sideB.BLANCOS ?? sideB.VACIOS ?? 0) : 0);
       return {
         partido: partyLabels[p] || p,
         key: p,

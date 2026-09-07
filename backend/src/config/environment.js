@@ -5,8 +5,8 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const environment = {
-  port: parseInt(process.env.PORT, 10),
-  nodeEnv: process.env.NODE_ENV,
+  port: parseInt(process.env.PORT, 10) || 5182,
+  nodeEnv: process.env.NODE_ENV || 'development',
   
   db: {
     server: process.env.DB_SERVER,

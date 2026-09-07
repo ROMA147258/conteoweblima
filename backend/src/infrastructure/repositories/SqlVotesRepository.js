@@ -70,13 +70,13 @@ class SqlVotesRepository {
       SELECT 
         ${pCols},
         COALESCE(SUM(p_nulos), 0)::int AS "p_NULOS",
-        COALESCE(SUM(p_vacios), 0)::int AS "p_VACIOS",
+        COALESCE(SUM(p_blanco), 0)::int AS "p_BLANCOS",
         COALESCE(SUM(p_impugnados), 0)::int AS "p_IMPUGNADOS",
         COALESCE(SUM(p_total_votos), 0)::int AS "p_TOTAL",
 
         ${dCols},
         COALESCE(SUM(d_nulos), 0)::int AS "d_NULOS",
-        COALESCE(SUM(d_vacios), 0)::int AS "d_VACIOS",
+        COALESCE(SUM(d_blanco), 0)::int AS "d_BLANCOS",
         COALESCE(SUM(d_impugnados), 0)::int AS "d_IMPUGNADOS",
         COALESCE(SUM(d_total_votos), 0)::int AS "d_TOTAL",
 
@@ -93,13 +93,13 @@ class SqlVotesRepository {
         origen,
         ${pCols},
         COALESCE(SUM(p_nulos), 0)::int AS "p_NULOS",
-        COALESCE(SUM(p_vacios), 0)::int AS "p_VACIOS",
+        COALESCE(SUM(p_blanco), 0)::int AS "p_BLANCOS",
         COALESCE(SUM(p_impugnados), 0)::int AS "p_IMPUGNADOS",
         COALESCE(SUM(p_total_votos), 0)::int AS "p_TOTAL",
 
         ${dCols},
         COALESCE(SUM(d_nulos), 0)::int AS "d_NULOS",
-        COALESCE(SUM(d_vacios), 0)::int AS "d_VACIOS",
+        COALESCE(SUM(d_blanco), 0)::int AS "d_BLANCOS",
         COALESCE(SUM(d_impugnados), 0)::int AS "d_IMPUGNADOS",
         COALESCE(SUM(d_total_votos), 0)::int AS "d_TOTAL"
       FROM votos_detalle
@@ -127,7 +127,9 @@ class SqlVotesRepository {
       obj['VERDE'] = obj.VERDE || 0;
       obj['MORADO'] = obj.MORADO || 0;
       obj.NULOS = r[`${prefix}_NULOS`] || 0;
-      obj.VACIOS = r[`${prefix}_VACIOS`] || 0;
+      obj.BLANCOS = r[`${prefix}_BLANCOS`] ?? 0;
+      obj.BLANCO = obj.BLANCOS;
+      obj.VACIOS = obj.BLANCOS; // Retrocompatibilidad
       obj.IMPUGNADOS = r[`${prefix}_IMPUGNADOS`] || 0;
       obj.TOTAL = r[`${prefix}_TOTAL`] || 0;
       return obj;
@@ -168,8 +170,9 @@ class SqlVotesRepository {
     const p_verde_v = prov.VERDE ? (parseInt(prov.VERDE.votos) || 0) : 0;
     const p_morado_v = prov.MORADO ? (parseInt(prov.MORADO.votos) || 0) : 0;
     const p_nulos = parseInt(data.votos_nulos) || 0;
-    const p_vacios = parseInt(data.votos_vacios) || 0;
-    const p_total = p_fp_v + p_jp_v + p_sp_v + p_frepap_v + p_verde_v + p_morado_v + p_nulos + p_vacios;
+    const p_blancos = parseInt(data.votos_blancos) || parseInt(data.votos_vacios) || parseInt(data.p_blanco) || 0;
+    const p_impugnados = parseInt(data.votos_impugnados) || parseInt(data.p_impugnados) || 0;
+    const p_total = p_fp_v + p_jp_v + p_sp_v + p_frepap_v + p_verde_v + p_morado_v + p_nulos + p_blancos + p_impugnados;
 
     const d_fp_v = dist.FP ? (parseInt(dist.FP.votos) || 0) : 0;
     const d_jp_v = dist.JP ? (parseInt(dist.JP.votos) || 0) : 0;
@@ -178,27 +181,28 @@ class SqlVotesRepository {
     const d_verde_v = dist.VERDE ? (parseInt(dist.VERDE.votos) || 0) : 0;
     const d_morado_v = dist.MORADO ? (parseInt(dist.MORADO.votos) || 0) : 0;
     const d_nulos = parseInt(data.votos_dist_nulos) || 0;
-    const d_vacios = parseInt(data.votos_dist_vacios) || 0;
-    const d_total = d_fp_v + d_jp_v + d_sp_v + d_frepap_v + d_verde_v + d_morado_v + d_nulos + d_vacios;
+    const d_blancos = parseInt(data.votos_dist_blancos) || parseInt(data.votos_dist_vacios) || parseInt(data.d_blanco) || 0;
+    const d_impugnados = parseInt(data.votos_dist_impugnados) || parseInt(data.d_impugnados) || 0;
+    const d_total = d_fp_v + d_jp_v + d_sp_v + d_frepap_v + d_verde_v + d_morado_v + d_nulos + d_blancos + d_impugnados;
 
     const sql = `
       INSERT INTO votos_detalle (
         personero, dni, departamento, provincia, ubicacion, colegio, numero_mesa, origen,
         p_fp_candidato, p_fp_votos, p_jp_candidato, p_jp_votos, p_sp_candidato, p_sp_votos,
         p_frepap_candidato, p_frepap_votos, p_verde_candidato, p_verde_votos, p_morado_candidato, p_morado_votos,
-        p_nulos, p_vacios, p_total_votos,
+        p_nulos, p_blanco, p_impugnados, p_total_votos,
         d_fp_candidato, d_fp_votos, d_jp_candidato, d_jp_votos, d_sp_candidato, d_sp_votos,
         d_frepap_candidato, d_frepap_votos, d_verde_candidato, d_verde_votos, d_morado_candidato, d_morado_votos,
-        d_nulos, d_vacios, d_total_votos, fecha_hora
+        d_nulos, d_blanco, d_impugnados, d_total_votos, fecha_hora
       )
       VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
         $9, $10, $11, $12, $13, $14,
         $15, $16, $17, $18, $19, $20,
-        $21, $22, $23,
-        $24, $25, $26, $27, $28, $29,
-        $30, $31, $32, $33, $34, $35,
-        $36, $37, $38, NOW()
+        $21, $22, $23, $24,
+        $25, $26, $27, $28, $29, $30,
+        $31, $32, $33, $34, $35, $36,
+        $37, $38, $39, $40, NOW()
       )
       ON CONFLICT (numero_mesa, origen) DO UPDATE SET
         personero = EXCLUDED.personero,
@@ -220,7 +224,8 @@ class SqlVotesRepository {
         p_morado_candidato = EXCLUDED.p_morado_candidato,
         p_morado_votos = EXCLUDED.p_morado_votos,
         p_nulos = EXCLUDED.p_nulos,
-        p_vacios = EXCLUDED.p_vacios,
+        p_blanco = EXCLUDED.p_blanco,
+        p_impugnados = EXCLUDED.p_impugnados,
         p_total_votos = EXCLUDED.p_total_votos,
         d_fp_candidato = EXCLUDED.d_fp_candidato,
         d_fp_votos = EXCLUDED.d_fp_votos,
@@ -235,7 +240,8 @@ class SqlVotesRepository {
         d_morado_candidato = EXCLUDED.d_morado_candidato,
         d_morado_votos = EXCLUDED.d_morado_votos,
         d_nulos = EXCLUDED.d_nulos,
-        d_vacios = EXCLUDED.d_vacios,
+        d_blanco = EXCLUDED.d_blanco,
+        d_impugnados = EXCLUDED.d_impugnados,
         d_total_votos = EXCLUDED.d_total_votos,
         fecha_hora = NOW()
     `;
@@ -243,20 +249,20 @@ class SqlVotesRepository {
     const params = [
       data.brigadista || '', data.dni || '', data.departamento || 'Lima', data.provincia || 'Lima',
       data.ubicacion || '', data.colegio || '', mesaStr, origenStr,
-      prov.FP?.candidato || '', p_fp_v = prov.FP ? (parseInt(prov.FP.votos) || 0) : 0,
-      prov.JP?.candidato || '', p_jp_v = prov.JP ? (parseInt(prov.JP.votos) || 0) : 0,
-      prov['SOMOS PERU']?.candidato || '', p_sp_v = prov['SOMOS PERU'] ? (parseInt(prov['SOMOS PERU'].votos) || 0) : 0,
-      prov.FREPAP?.candidato || '', p_frepap_v = prov.FREPAP ? (parseInt(prov.FREPAP.votos) || 0) : 0,
-      prov.VERDE?.candidato || '', p_verde_v = prov.VERDE ? (parseInt(prov.VERDE.votos) || 0) : 0,
-      prov.MORADO?.candidato || '', p_morado_v = prov.MORADO ? (parseInt(prov.MORADO.votos) || 0) : 0,
-      p_nulos, p_vacios, p_total,
-      dist.FP?.candidato || '', d_fp_v = dist.FP ? (parseInt(dist.FP.votos) || 0) : 0,
-      dist.JP?.candidato || '', d_jp_v = dist.JP ? (parseInt(dist.JP.votos) || 0) : 0,
-      dist['SOMOS PERU']?.candidato || '', d_sp_v = dist['SOMOS PERU'] ? (parseInt(dist['SOMOS PERU'].votos) || 0) : 0,
-      dist.FREPAP?.candidato || '', d_frepap_v = dist.FREPAP ? (parseInt(dist.FREPAP.votos) || 0) : 0,
-      dist.VERDE?.candidato || '', d_verde_v = dist.VERDE ? (parseInt(dist.VERDE.votos) || 0) : 0,
-      dist.MORADO?.candidato || '', d_morado_v = dist.MORADO ? (parseInt(dist.MORADO.votos) || 0) : 0,
-      d_nulos, d_vacios, d_total
+      prov.FP?.candidato || '', p_fp_v,
+      prov.JP?.candidato || '', p_jp_v,
+      prov['SOMOS PERU']?.candidato || '', p_sp_v,
+      prov.FREPAP?.candidato || '', p_frepap_v,
+      prov.VERDE?.candidato || '', p_verde_v,
+      prov.MORADO?.candidato || '', p_morado_v,
+      p_nulos, p_blancos, p_impugnados, p_total,
+      dist.FP?.candidato || '', d_fp_v,
+      dist.JP?.candidato || '', d_jp_v,
+      dist['SOMOS PERU']?.candidato || '', d_sp_v,
+      dist.FREPAP?.candidato || '', d_frepap_v,
+      dist.VERDE?.candidato || '', d_verde_v,
+      dist.MORADO?.candidato || '', d_morado_v,
+      d_nulos, d_blancos, d_impugnados, d_total
     ];
 
     await query(sql, params);
@@ -287,7 +293,9 @@ class SqlVotesRepository {
           COALESCE(SUM(p_verde_votos),0)::int AS "VERDE", 
           COALESCE(SUM(p_morado_votos),0)::int AS "MORADO",
           COALESCE(SUM(p_nulos),0)::int AS "NULOS", 
-          COALESCE(SUM(p_vacios),0)::int AS "VACIOS" 
+          COALESCE(SUM(p_blanco),0)::int AS "BLANCOS",
+          COALESCE(SUM(p_blanco),0)::int AS "VACIOS",
+          COALESCE(SUM(p_impugnados),0)::int AS "IMPUGNADOS" 
         FROM votos_detalle
       `),
       query(`
@@ -299,13 +307,15 @@ class SqlVotesRepository {
           COALESCE(SUM(d_verde_votos),0)::int AS "VERDE", 
           COALESCE(SUM(d_morado_votos),0)::int AS "MORADO",
           COALESCE(SUM(d_nulos),0)::int AS "NULOS", 
-          COALESCE(SUM(d_vacios),0)::int AS "VACIOS" 
+          COALESCE(SUM(d_blanco),0)::int AS "BLANCOS",
+          COALESCE(SUM(d_blanco),0)::int AS "VACIOS",
+          COALESCE(SUM(d_impugnados),0)::int AS "IMPUGNADOS" 
         FROM votos_detalle
       `),
       query(`
         SELECT numero_mesa AS mesa, origen, ubicacion, colegio, personero AS brigadista, fecha_hora AS fecha,
-               p_fp_votos, p_jp_votos, p_sp_votos, p_frepap_votos, p_verde_votos, p_morado_votos, p_nulos, p_vacios,
-               d_fp_votos, d_jp_votos, d_sp_votos, d_frepap_votos, d_verde_votos, d_morado_votos, d_nulos, d_vacios
+               p_fp_votos, p_jp_votos, p_sp_votos, p_frepap_votos, p_verde_votos, p_morado_votos, p_nulos, p_blanco AS p_blancos, p_blanco AS p_vacios, p_impugnados AS p_impugnados,
+               d_fp_votos, d_jp_votos, d_sp_votos, d_frepap_votos, d_verde_votos, d_morado_votos, d_nulos, d_blanco AS d_blancos, d_blanco AS d_vacios, d_impugnados AS d_impugnados
         FROM votos_detalle
       `)
     ]);
@@ -313,8 +323,8 @@ class SqlVotesRepository {
     const mesasFormatted = (mesasRes.rows || []).map(r => ({
       mesa: r.mesa, origen: r.origen, ubicacion: r.ubicacion, colegio: r.colegio,
       brigadista: r.brigadista, fecha: r.fecha,
-      votos_provincial: { FP: r.p_fp_votos, JP: r.p_jp_votos, SP: r.p_sp_votos, FREPAP: r.p_frepap_votos, VERDE: r.p_verde_votos, MORADO: r.p_morado_votos, votos_nulos: r.p_nulos, votos_vacios: r.p_vacios },
-      votos_distrital: { FP: r.d_fp_votos, JP: r.d_jp_votos, SP: r.d_sp_votos, FREPAP: r.d_frepap_votos, VERDE: r.d_verde_votos, MORADO: r.d_morado_votos, votos_dist_nulos: r.d_nulos, votos_dist_vacios: r.d_vacios }
+      votos_provincial: { FP: r.p_fp_votos, JP: r.p_jp_votos, SP: r.p_sp_votos, FREPAP: r.p_frepap_votos, VERDE: r.p_verde_votos, MORADO: r.p_morado_votos, votos_nulos: r.p_nulos, votos_blancos: r.p_blancos, votos_vacios: r.p_vacios, votos_impugnados: r.p_impugnados },
+      votos_distrital: { FP: r.d_fp_votos, JP: r.d_jp_votos, SP: r.d_sp_votos, FREPAP: r.d_frepap_votos, VERDE: r.d_verde_votos, MORADO: r.d_morado_votos, votos_dist_nulos: r.d_nulos, votos_dist_blancos: r.d_blancos, votos_dist_vacios: r.d_vacios, votos_dist_impugnados: r.d_impugnados }
     }));
 
     let mesasEstructura = [];
@@ -432,7 +442,9 @@ class SqlVotesRepository {
           COALESCE(SUM(p_morado_votos), 0)::int AS "MO",
           COALESCE(SUM(p_morado_votos), 0)::int AS "MORADO",
           COALESCE(SUM(p_nulos), 0)::int AS "NULOS",
-          COALESCE(SUM(p_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_blanco), 0)::int AS "BLANCOS",
+          COALESCE(SUM(p_blanco), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_impugnados), 0)::int AS "IMPUGNADOS",
           COALESCE(SUM(p_total_votos), 0)::int AS "TOTAL",
           COUNT(DISTINCT numero_mesa)::int AS "mesas"
         FROM votos_detalle
@@ -452,7 +464,9 @@ class SqlVotesRepository {
           COALESCE(SUM(d_morado_votos), 0)::int AS "MO",
           COALESCE(SUM(d_morado_votos), 0)::int AS "MORADO",
           COALESCE(SUM(d_nulos), 0)::int AS "NULOS",
-          COALESCE(SUM(d_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(d_blanco), 0)::int AS "BLANCOS",
+          COALESCE(SUM(d_blanco), 0)::int AS "VACIOS",
+          COALESCE(SUM(d_impugnados), 0)::int AS "IMPUGNADOS",
           COALESCE(SUM(d_total_votos), 0)::int AS "TOTAL",
           COUNT(DISTINCT numero_mesa)::int AS "mesas"
         FROM votos_detalle
@@ -472,7 +486,9 @@ class SqlVotesRepository {
           COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MO",
           COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MORADO",
           COALESCE(SUM(p_nulos + d_nulos), 0)::int AS "NULOS",
-          COALESCE(SUM(p_vacios + d_vacios), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_blanco + d_blanco), 0)::int AS "BLANCOS",
+          COALESCE(SUM(p_blanco + d_blanco), 0)::int AS "VACIOS",
+          COALESCE(SUM(p_impugnados + d_impugnados), 0)::int AS "IMPUGNADOS",
           COALESCE(SUM(p_total_votos + d_total_votos), 0)::int AS "TOTAL",
           COUNT(DISTINCT numero_mesa)::int AS "mesas"
         FROM votos_detalle
@@ -483,12 +499,12 @@ class SqlVotesRepository {
     try {
       const res = await query(sql, params);
       return res.rows[0] || {
-        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, VACIOS: 0, TOTAL: 0, mesas: 0
+        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, BLANCOS: 0, VACIOS: 0, IMPUGNADOS: 0, TOTAL: 0, mesas: 0
       };
     } catch (e) {
       console.error('[getComparisonVotes Error]:', e.message);
       return {
-        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, VACIOS: 0, TOTAL: 0, mesas: 0
+        FP: 0, JP: 0, SP: 0, 'SOMOS PERU': 0, FR: 0, FREPAP: 0, VE: 0, VERDE: 0, MO: 0, MORADO: 0, NULOS: 0, BLANCOS: 0, VACIOS: 0, IMPUGNADOS: 0, TOTAL: 0, mesas: 0
       };
     }
   }

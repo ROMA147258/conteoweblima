@@ -84,7 +84,7 @@ export const ComparisonView = () => {
     { key: 'VE', altKeys: ['VE', 'VERDE'], label: 'Verde', color: '#38a169' },
     { key: 'MO', altKeys: ['MO', 'MORADO'], label: 'Morado', color: '#6b46c1' },
     { key: 'NULOS', altKeys: ['NULOS'], label: 'Nulos', color: '#7f8c8d' },
-    { key: 'VACIOS', altKeys: ['VACIOS'], label: 'Vacíos', color: '#bdc3c7' }
+    { key: 'BLANCOS', altKeys: ['BLANCOS', 'VACIOS', 'BLANCO'], label: 'Blancos', color: '#bdc3c7' }
   ];
 
   const getVoteValue = (sideRaw, party) => {

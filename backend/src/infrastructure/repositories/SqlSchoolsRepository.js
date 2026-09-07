@@ -65,7 +65,8 @@ class SqlSchoolsRepository {
           COALESCE(SUM(p_verde_votos + d_verde_votos), 0)::int AS "VERDE",
           COALESCE(SUM(p_morado_votos + d_morado_votos), 0)::int AS "MORADO",
           COALESCE(SUM(p_nulos + d_nulos), 0)::int AS "NULOS",
-          COALESCE(SUM(p_vacios + d_vacios), 0)::int AS "VACIOS"
+          COALESCE(SUM(p_blanco + d_blanco), 0)::int AS "BLANCOS",
+          COALESCE(SUM(p_blanco + d_blanco), 0)::int AS "VACIOS"
         FROM votos_detalle
         GROUP BY ubicacion, colegio
       `;
@@ -86,7 +87,7 @@ class SqlSchoolsRepository {
           distrito: r.distrito,
           mesasEscrutadas: 0,
           totalVotos: 0,
-          votosPorPartido: { FP: 0, JP: 0, SP: 0, FREPAP: 0, VERDE: 0, MORADO: 0, NULOS: 0, VACIOS: 0 }
+          votosPorPartido: { FP: 0, JP: 0, SP: 0, FREPAP: 0, VERDE: 0, MORADO: 0, NULOS: 0, BLANCOS: 0, VACIOS: 0 }
         };
       }
       districtSummary[distKey].mesasEscrutadas += r.mesas_escrutadas || 0;
@@ -98,7 +99,8 @@ class SqlSchoolsRepository {
       districtSummary[distKey].votosPorPartido.VERDE += r.VERDE || 0;
       districtSummary[distKey].votosPorPartido.MORADO += r.MORADO || 0;
       districtSummary[distKey].votosPorPartido.NULOS += r.NULOS || 0;
-      districtSummary[distKey].votosPorPartido.VACIOS += r.VACIOS || 0;
+      districtSummary[distKey].votosPorPartido.BLANCOS += r.BLANCOS ?? r.VACIOS ?? 0;
+      districtSummary[distKey].votosPorPartido.VACIOS += r.BLANCOS ?? r.VACIOS ?? 0;
     });
 
     const schoolsWithData = schools.map(s => {
@@ -123,7 +125,8 @@ class SqlSchoolsRepository {
           VERDE: vData.VERDE,
           MORADO: vData.MORADO,
           NULOS: vData.NULOS,
-          VACIOS: vData.VACIOS
+          BLANCOS: vData.BLANCOS ?? vData.VACIOS ?? 0,
+          VACIOS: vData.BLANCOS ?? vData.VACIOS ?? 0
         } : null
       };
     });

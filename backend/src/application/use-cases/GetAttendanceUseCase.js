@@ -14,7 +14,11 @@ class GetAttendanceUseCase {
         totalPersonerosRegistrados: aggregates.totalPersonerosRegistrados,
         primeraAsistencia: aggregates.primeraAsistencia,
         segundaAsistencia: aggregates.segundaAsistencia,
-        distritosConReporte: aggregates.distritosConReporte
+        distritosConReporte: aggregates.distritosConReporte,
+        enviosManual: aggregates.enviosManual || 0,
+        enviosImagen: aggregates.enviosImagen || 0,
+        enviosAmbos: aggregates.enviosAmbos || 0,
+        sinEnvio: aggregates.sinEnvio || 0
       },
       charts: {
         conf1Global: {
