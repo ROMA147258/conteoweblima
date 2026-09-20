@@ -6,27 +6,33 @@ class SqlVotesRepository {
     let params = [];
     let paramIndex = 1;
 
-    if (filters.distrito && filters.distrito !== 'todos' && filters.distrito !== 'LIMA') {
-      whereConditions.push(`LOWER(TRIM(ubicacion)) = LOWER(TRIM($${paramIndex}))`);
+    if (filters.distrito && filters.distrito !== 'todos' && filters.distrito !== 'todas') {
+      whereConditions.push(`TRANSLATE(LOWER(TRIM(ubicacion)), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')`);
       params.push(filters.distrito);
       paramIndex++;
     }
 
-    if (filters.colegio && filters.colegio !== 'todos') {
-      whereConditions.push(`LOWER(TRIM(colegio)) = LOWER(TRIM($${paramIndex}))`);
+    if (filters.colegio && filters.colegio !== 'todos' && filters.colegio !== 'todas') {
+      whereConditions.push(`(TRANSLATE(LOWER(TRIM(colegio)), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') OR colegio ILIKE $${paramIndex})`);
       params.push(filters.colegio);
       paramIndex++;
     }
 
-    if (filters.mesa && filters.mesa !== 'todas') {
+    if (filters.mesa && filters.mesa !== 'todas' && filters.mesa !== 'todos') {
       whereConditions.push(`LOWER(TRIM(numero_mesa)) = LOWER(TRIM($${paramIndex}))`);
       params.push(filters.mesa);
       paramIndex++;
     }
 
-    if (filters.origen && filters.origen !== 'todos') {
+    if (filters.origen && filters.origen !== 'todos' && filters.origen !== 'todas') {
       whereConditions.push(`LOWER(TRIM(origen)) = LOWER(TRIM($${paramIndex}))`);
       params.push(filters.origen);
+      paramIndex++;
+    }
+
+    if (filters.provincia && filters.provincia !== 'todas' && filters.provincia !== 'todos' && filters.provincia.toLowerCase() !== 'lima metropolitana' && filters.provincia.toLowerCase() !== 'lima-metropolitana' && filters.provincia.toLowerCase() !== 'lima') {
+      whereConditions.push(`TRANSLATE(LOWER(TRIM(provincia)), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU')`);
+      params.push(filters.provincia);
       paramIndex++;
     }
 
@@ -399,13 +405,13 @@ class SqlVotesRepository {
     const origen = (filter.origen || '').trim().toUpperCase();
     const votoTipo = (filter.votoTipo || 'todos').toLowerCase();
 
-    if (location && location.toUpperCase() !== 'TODOS' && location.toUpperCase() !== 'LIMA') {
+    if (location && location.toUpperCase() !== 'TODOS') {
       if (level === 'distrito') {
-        whereConditions.push(`LOWER(TRIM(ubicacion)) = LOWER(TRIM($${paramIndex}))`);
+        whereConditions.push(`TRANSLATE(LOWER(TRIM(ubicacion)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU')`);
         params.push(location);
         paramIndex++;
       } else if (level === 'colegio') {
-        whereConditions.push(`LOWER(TRIM(colegio)) = LOWER(TRIM($${paramIndex}))`);
+        whereConditions.push(`(TRANSLATE(LOWER(TRIM(colegio)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') OR colegio ILIKE '%' || $${paramIndex} || '%')`);
         params.push(location);
         paramIndex++;
       } else if (level === 'mesa') {

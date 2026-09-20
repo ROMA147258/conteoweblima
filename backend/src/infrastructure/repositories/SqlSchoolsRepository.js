@@ -7,12 +7,12 @@ class SqlSchoolsRepository {
     let paramIndex = 1;
 
     if (filter.distrito && filter.distrito !== 'todos' && filter.distrito !== 'LIMA') {
-      where.push(`TRIM(LOWER(distrito)) = TRIM(LOWER($${paramIndex}))`);
+      where.push(`TRANSLATE(LOWER(TRIM(distrito)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU')`);
       params.push(filter.distrito);
       paramIndex++;
     }
     if (filter.provincia && filter.provincia !== 'todas' && filter.provincia !== 'Lima') {
-      where.push(`TRIM(LOWER(provincia)) = TRIM(LOWER($${paramIndex}))`);
+      where.push(`TRANSLATE(LOWER(TRIM(provincia)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU')`);
       params.push(filter.provincia);
       paramIndex++;
     }

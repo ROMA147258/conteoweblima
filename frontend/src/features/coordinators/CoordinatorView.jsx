@@ -83,6 +83,53 @@ export const CoordinatorView = () => {
     ]
   };
 
+  const filterAnimKey = `${filters.distrito || ''}_${filters.colegio || ''}`;
+
+  const donutOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 850,
+      easing: 'easeOutCirc'
+    }
+  };
+
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: {
+      duration: 900,
+      easing: 'easeOutQuart',
+      delay: (ctx) => {
+        if (ctx.type === 'data' && ctx.mode === 'default') {
+          return (ctx.dataIndex || 0) * 40;
+        }
+        return 0;
+      }
+    },
+    animations: {
+      y: {
+        type: 'number',
+        easing: 'easeOutQuart',
+        duration: 900,
+        from: (ctx) => {
+          if (ctx.chart && ctx.chart.scales && ctx.chart.scales.y) {
+            return ctx.chart.scales.y.getPixelForValue(0);
+          }
+          return 0;
+        },
+        delay: (ctx) => {
+          if (ctx.type === 'data' && ctx.mode === 'default') {
+            return (ctx.dataIndex || 0) * 40;
+          }
+          return 0;
+        }
+      }
+    }
+  };
+
   return (
     <section className="view active" id="view-asistencia">
       <div className="view-header">
@@ -112,20 +159,45 @@ export const CoordinatorView = () => {
           </div>
 
           <div className="kpi-card-pro" style={{ '--kpi-color': '#f59e0b', padding: '0.75rem 1rem' }}>
-            <span className="kpi-icon">👤</span>
+            <span className="kpi-icon">⏳</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value">{kpis.coordinadoresFaltantes}</span>
-              <span className="kpi-card-label">COORDINADORES FALTANTES</span>
+              <span className="kpi-card-value">{kpis.personasQueFaltan}</span>
+              <span className="kpi-card-label">PERSONAS QUE FALTAN</span>
             </div>
           </div>
 
           <div className="kpi-card-pro" style={{ '--kpi-color': '#8b5cf6', padding: '0.75rem 1rem' }}>
-            <span className="kpi-icon">📈</span>
+            <span className="kpi-icon">📊</span>
             <div className="kpi-meta">
-              <span className="kpi-card-value">
-                {typeof kpis.porcentajeAsistencia === 'string' ? kpis.porcentajeAsistencia.replace('%', '') : kpis.porcentajeAsistencia}%
-              </span>
-              <span className="kpi-card-label">% ASISTENCIA</span>
+              <span className="kpi-card-value">{kpis.porcentajeAsistencia}%</span>
+              <span className="kpi-card-label">PORCENTAJE DE ASISTENCIA</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Gráficos de Monitoreo */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.85rem', marginBottom: '1rem' }}>
+          <div className="dash-widget" style={{ height: '260px' }}>
+            <div className="widget-header">
+              <div>
+                <h3 className="widget-title">Resumen de Asistencia</h3>
+                <p className="widget-subtitle">Confirmadas vs Faltantes</p>
+              </div>
+            </div>
+            <div className="widget-chart" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+              <Doughnut key={`donut-coord-${filterAnimKey}`} data={doughnutData} options={donutOptions} />
+            </div>
+          </div>
+
+          <div className="dash-widget" style={{ height: '260px' }}>
+            <div className="widget-header">
+              <div>
+                <h3 className="widget-title">Apertura por Distrito</h3>
+                <p className="widget-subtitle">Mesas aperturadas/confirmadas por distrito</p>
+              </div>
+            </div>
+            <div className="widget-chart">
+              <Bar key={`bar-coord-${filterAnimKey}`} data={barData} options={barOptions} />
             </div>
           </div>
         </div>

@@ -36,19 +36,27 @@ export const FilterProvider = ({ children }) => {
   useEffect(() => {
     async function loadLocations() {
       if (!filters.distrito) {
-        setAvailableSchools([]);
+        if (locationsData?.colegiosPorDistrito) {
+          const all = Object.values(locationsData.colegiosPorDistrito).flat();
+          setAvailableSchools(Array.from(new Set(all)).filter(Boolean).sort());
+        }
         return;
       }
 
-      if (locationsData?.colegiosPorDistrito && locationsData.colegiosPorDistrito[filters.distrito]) {
-        setAvailableSchools(locationsData.colegiosPorDistrito[filters.distrito]);
-        return;
+      if (locationsData?.colegiosPorDistrito) {
+        const foundKey = Object.keys(locationsData.colegiosPorDistrito).find(
+          k => k.trim().toLowerCase() === filters.distrito.trim().toLowerCase()
+        );
+        if (foundKey && locationsData.colegiosPorDistrito[foundKey]?.length) {
+          setAvailableSchools(locationsData.colegiosPorDistrito[foundKey]);
+          return;
+        }
       }
 
       try {
         const res = await apiClient.get('/map', { distrito: filters.distrito });
         if (res.success && res.data?.colegios) {
-          const uniqueSchools = Array.from(new Set(res.data.colegios.map(c => c.colegio))).filter(Boolean);
+          const uniqueSchools = Array.from(new Set(res.data.colegios.map(c => c.colegio))).filter(Boolean).sort();
           setAvailableSchools(uniqueSchools);
         }
       } catch (_) {}

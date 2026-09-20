@@ -1,4 +1,6 @@
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 const config = require('./config/environment');
 const corsMiddleware = require('./interfaces/middleware/corsMiddleware');
@@ -8,10 +10,47 @@ const { getPool } = require('./infrastructure/database/postgresPool');
 
 const app = express();
 
+// Confianza en proxies inversos (Cloudflare, Vercel, Render, Nginx) para obtener IPs reales
+app.set('trust proxy', 1);
+
+// 1. Cabeceras de seguridad HTTP con Helmet
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false
+}));
+
+// 2. Limitador contra Fuerza Bruta en Login (Máximo 10 intentos cada 15 minutos por IP)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    message: 'Demasiados intentos de acceso fallidos. Por seguridad, intente de nuevo en 15 minutos.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// 3. Limitador General para la API (Máximo 300 peticiones por minuto por IP)
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 300,
+  message: {
+    success: false,
+    message: 'Límite de solicitudes alcanzado. Por favor, espere un momento antes de continuar.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Middlewares globales
 app.use(corsMiddleware);
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use('/api/auth/login', authLimiter);
+app.use('/api', generalLimiter);
+
+// Límite controlado de body para prevenir ataques de saturación de memoria (DoS)
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ limit: '5mb', extended: true }));
 
 // Rutas de API
 app.use('/api', createApiRouter());

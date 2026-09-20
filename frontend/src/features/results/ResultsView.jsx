@@ -44,23 +44,26 @@ export const ResultsView = () => {
   const ocrProv = data?.desglose?.ocrProvincial || {};
   const ocrDist = data?.desglose?.ocrDistrital || {};
 
+  const totalesProv = data?.totalesProvincial || {};
+  const totalesDist = data?.totalesDistrital || {};
+  const candProvDB = data?.candidatosProvincial || {};
+  const candDistDB = data?.candidatosDistrital || {};
+
   const totalManualProv = manualProv.TOTAL || 0;
   const totalManualDist = manualDist.TOTAL || 0;
   const totalOcrProv = ocrProv.TOTAL || 0;
   const totalOcrDist = ocrDist.TOTAL || 0;
 
-  const candProvDB = data?.candidatosProvincial || {};
-  const candDistDB = data?.candidatosDistrital || {};
-
-  // Resultado Lima Metropolitana = Suma de Provincial Manual + Provincial OCR
-  const combinedLimaMetro = {};
-  PARTY_KEYS.forEach(k => {
-    const v1 = manualProv[k] || (k === 'SP' ? manualProv['SOMOS PERU'] : 0) || 0;
-    const v2 = ocrProv[k] || (k === 'SP' ? ocrProv['SOMOS PERU'] : 0) || 0;
-    combinedLimaMetro[k] = v1 + v2;
-  });
-
-  const totalLimaMetro = totalManualProv + totalOcrProv;
+  const totalLimaMetro = totalesProv.TOTAL !== undefined ? totalesProv.TOTAL : (totalManualProv + totalOcrProv);
+  const combinedLimaMetro = Object.keys(totalesProv).length > 0 ? totalesProv : (() => {
+    const obj = {};
+    PARTY_KEYS.forEach(k => {
+      const v1 = manualProv[k] || (k === 'SP' ? manualProv['SOMOS PERU'] : 0) || 0;
+      const v2 = ocrProv[k] || (k === 'SP' ? ocrProv['SOMOS PERU'] : 0) || 0;
+      obj[k] = v1 + v2;
+    });
+    return obj;
+  })();
 
   const selectedPartyKey = filters.partido ? filters.partido.toUpperCase() : null;
   const selectedParty = selectedPartyKey ? PARTIES[selectedPartyKey] : null;
@@ -143,9 +146,40 @@ export const ResultsView = () => {
     };
   };
 
+  const filterAnimKey = `${filters.departamento || ''}_${filters.provincia || ''}_${filters.distrito || ''}_${filters.colegio || ''}_${filters.mesa || ''}_${filters.partido || ''}_${filters.origen || ''}`;
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 900,
+      easing: 'easeOutQuart',
+      delay: (ctx) => {
+        if (ctx.type === 'data' && ctx.mode === 'default') {
+          return (ctx.dataIndex || 0) * 40;
+        }
+        return 0;
+      }
+    },
+    animations: {
+      y: {
+        type: 'number',
+        easing: 'easeOutQuart',
+        duration: 900,
+        from: (ctx) => {
+          if (ctx.chart && ctx.chart.scales && ctx.chart.scales.y) {
+            return ctx.chart.scales.y.getPixelForValue(0);
+          }
+          return 0;
+        },
+        delay: (ctx) => {
+          if (ctx.type === 'data' && ctx.mode === 'default') {
+            return (ctx.dataIndex || 0) * 40;
+          }
+          return 0;
+        }
+      }
+    },
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -176,6 +210,12 @@ export const ResultsView = () => {
   const doughnutOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 900,
+      easing: 'easeOutCirc'
+    },
     plugins: {
       legend: {
         position: 'right',
@@ -294,7 +334,7 @@ export const ResultsView = () => {
                     />
                   )}
                   <span>{p.short}</span>
-                  <strong style={{ color: p.color }}>{p.pct.toFixed(1)}%</strong>
+                  <strong style={{ color: p.color }}>{(p.pct || 0).toFixed(1)}%</strong>
                 </div>
               );
             })}
@@ -417,10 +457,10 @@ export const ResultsView = () => {
                       🏛️ CAND. PROVINCIAL (LIMA)
                     </span>
                     <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {focusedPartyData.candidatoProv}
+                      {focusedPartyData.candidatoProv || '—'}
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text2)', display: 'block' }}>
-                      Votos: <strong style={{ color: 'var(--text)' }}>{focusedPartyData.provVotes.toLocaleString()}</strong> ({focusedPartyData.pct.toFixed(1)}%)
+                      Votos: <strong style={{ color: 'var(--text)' }}>{(focusedPartyData.provVotes || 0).toLocaleString()}</strong> ({(focusedPartyData.pct || 0).toFixed(1)}%)
                     </span>
                   </div>
 
@@ -436,10 +476,10 @@ export const ResultsView = () => {
                       📍 CAND. DISTRITAL ({filters.distrito || 'DISTRITO'})
                     </span>
                     <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {focusedPartyData.candidatoDist}
+                      {focusedPartyData.candidatoDist || '—'}
                     </span>
                     <span style={{ fontSize: '0.72rem', color: 'var(--text2)', display: 'block' }}>
-                      Votos Distritales: <strong style={{ color: 'var(--text)' }}>{focusedPartyData.distVotes.toLocaleString()}</strong>
+                      Votos Distritales: <strong style={{ color: 'var(--text)' }}>{(focusedPartyData.distVotes || 0).toLocaleString()}</strong>
                     </span>
                   </div>
 
@@ -455,7 +495,7 @@ export const ResultsView = () => {
                       🗳️ TOTAL VOTOS PARTIDO
                     </span>
                     <span style={{ fontSize: '1rem', fontWeight: 800, color: focusedPartyData.color, display: 'block' }}>
-                      {focusedPartyData.totalParty.toLocaleString()}
+                      {(focusedPartyData.totalParty || 0).toLocaleString()}
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text3)', display: 'block' }}>
                       Manual + OCR sumados
@@ -474,10 +514,10 @@ export const ResultsView = () => {
                       📈 % PARTICIPACIÓN LIMA
                     </span>
                     <span style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text)', display: 'block' }}>
-                      {focusedPartyData.pct.toFixed(1)}%
+                      {(focusedPartyData.pct || 0).toFixed(1)}%
                     </span>
                     <span style={{ fontSize: '0.7rem', color: 'var(--text3)', display: 'block' }}>
-                      De {totalLimaMetro.toLocaleString()} votos
+                      De {(totalLimaMetro || 0).toLocaleString()} votos
                     </span>
                   </div>
                 </div>
@@ -495,11 +535,11 @@ export const ResultsView = () => {
                       <p className="widget-subtitle">Comparativa por Origen de Datos y Tipo de Elección</p>
                     </div>
                     <span className="widget-badge" style={{ color: selectedParty?.color, fontWeight: 700 }}>
-                      {focusedPartyData?.totalParty.toLocaleString()} Votos
+                      {(focusedPartyData?.totalParty || 0).toLocaleString()} Votos
                     </span>
                   </div>
                   <div className="widget-chart" style={{ height: '200px' }}>
-                    <Bar data={createPartyBreakdownChartData(selectedPartyKey)} options={chartOptions} />
+                    <Bar key={`party-breakdown-${filterAnimKey}`} data={createPartyBreakdownChartData(selectedPartyKey)} options={chartOptions} />
                   </div>
                 </div>
 
@@ -511,11 +551,11 @@ export const ResultsView = () => {
                       <p className="widget-subtitle">Porcentaje sobre votos válidos, nulos e impugnados</p>
                     </div>
                     <span className="widget-badge" style={{ color: 'var(--accent)', fontWeight: 700 }}>
-                      {focusedPartyData?.pct.toFixed(1)}% de Lima
+                      {(focusedPartyData?.pct || 0).toFixed(1)}% de Lima
                     </span>
                   </div>
                   <div className="widget-chart" style={{ height: '200px' }}>
-                    <Doughnut data={createPartyShareDoughnutData(selectedPartyKey)} options={doughnutOptions} />
+                    <Doughnut key={`doughnut-${filterAnimKey}`} data={createPartyShareDoughnutData(selectedPartyKey)} options={doughnutOptions} />
                   </div>
                 </div>
               </>
@@ -527,7 +567,9 @@ export const ResultsView = () => {
                   <div className="widget-header">
                     <div>
                       <h3 className="widget-title">Alcaldía Metropolitana (Manual)</h3>
-                      <p className="widget-subtitle">Votos provinciales digitados</p>
+                      <p className="widget-subtitle">
+                        {filters.distrito ? `Votos para Lima en ${filters.distrito} (Digitados)` : 'Votos provinciales digitados'}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="widget-badge" style={{ color: 'var(--accent)', fontWeight: 700 }}>
@@ -537,7 +579,7 @@ export const ResultsView = () => {
                     </div>
                   </div>
                   <div className="widget-chart" style={{ height: '210px' }}>
-                    <Bar data={createGlobalChartData(manualProv)} options={chartOptions} />
+                    <Bar key={`bar-manual-prov-${filterAnimKey}`} data={createGlobalChartData(manualProv)} options={chartOptions} />
                   </div>
                 </div>
 
@@ -545,8 +587,12 @@ export const ResultsView = () => {
                 <div className="dash-widget widget-lg" style={{ minHeight: '270px' }}>
                   <div className="widget-header">
                     <div>
-                      <h3 className="widget-title">Alcaldía Distrital (Manual)</h3>
-                      <p className="widget-subtitle">Votos distritales digitados</p>
+                      <h3 className="widget-title">
+                        {filters.distrito ? `Alcaldía Distrital (${filters.distrito})` : 'Alcaldía Distrital (Manual)'}
+                      </h3>
+                      <p className="widget-subtitle">
+                        {filters.distrito ? `Votos distritales de ${filters.distrito} (Digitados)` : 'Votos distritales digitados'}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="widget-badge" style={{ color: 'var(--accent)', fontWeight: 700 }}>
@@ -556,7 +602,7 @@ export const ResultsView = () => {
                     </div>
                   </div>
                   <div className="widget-chart" style={{ height: '210px' }}>
-                    <Bar data={createGlobalChartData(manualDist)} options={chartOptions} />
+                    <Bar key={`bar-manual-dist-${filterAnimKey}`} data={createGlobalChartData(manualDist)} options={chartOptions} />
                   </div>
                 </div>
 
@@ -565,7 +611,9 @@ export const ResultsView = () => {
                   <div className="widget-header">
                     <div>
                       <h3 className="widget-title">Alcaldía Metropolitana (OCR / Foto)</h3>
-                      <p className="widget-subtitle">Votos procesados por imagen</p>
+                      <p className="widget-subtitle">
+                        {filters.distrito ? `Votos para Lima en ${filters.distrito} (Foto)` : 'Votos procesados por imagen'}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="widget-badge" style={{ color: 'var(--accent)', fontWeight: 700 }}>
@@ -575,7 +623,7 @@ export const ResultsView = () => {
                     </div>
                   </div>
                   <div className="widget-chart" style={{ height: '210px' }}>
-                    <Bar data={createGlobalChartData(ocrProv)} options={chartOptions} />
+                    <Bar key={`bar-ocr-prov-${filterAnimKey}`} data={createGlobalChartData(ocrProv)} options={chartOptions} />
                   </div>
                 </div>
 
@@ -583,8 +631,12 @@ export const ResultsView = () => {
                 <div className="dash-widget widget-lg" style={{ minHeight: '270px' }}>
                   <div className="widget-header">
                     <div>
-                      <h3 className="widget-title">Alcaldía Distrital (OCR / Foto)</h3>
-                      <p className="widget-subtitle">Votos procesados por imagen</p>
+                      <h3 className="widget-title">
+                        {filters.distrito ? `Alcaldía Distrital (${filters.distrito} - OCR)` : 'Alcaldía Distrital (OCR / Foto)'}
+                      </h3>
+                      <p className="widget-subtitle">
+                        {filters.distrito ? `Votos distritales de ${filters.distrito} (Foto)` : 'Votos procesados por imagen'}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="widget-badge" style={{ color: 'var(--accent)', fontWeight: 700 }}>
@@ -594,7 +646,7 @@ export const ResultsView = () => {
                     </div>
                   </div>
                   <div className="widget-chart" style={{ height: '210px' }}>
-                    <Bar data={createGlobalChartData(ocrDist)} options={chartOptions} />
+                    <Bar key={`bar-ocr-dist-${filterAnimKey}`} data={createGlobalChartData(ocrDist)} options={chartOptions} />
                   </div>
                 </div>
 
@@ -602,8 +654,12 @@ export const ResultsView = () => {
                 <div className="dash-widget widget-full" style={{ minHeight: '280px', marginBottom: '0.5rem' }}>
                   <div className="widget-header">
                     <div>
-                      <h3 className="widget-title">Consolidado Lima Metropolitana</h3>
-                      <p className="widget-subtitle">Total consolidado (Manual + OCR)</p>
+                      <h3 className="widget-title">
+                        {filters.distrito ? `Consolidado ${filters.distrito}` : 'Consolidado Lima Metropolitana'}
+                      </h3>
+                      <p className="widget-subtitle">
+                        {filters.distrito ? `Total consolidado en ${filters.distrito} (Manual + OCR)` : 'Total consolidado (Manual + OCR)'}
+                      </p>
                     </div>
                     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                       <span className="widget-badge" style={{ color: 'var(--accent-green)', fontWeight: 700, fontSize: '0.85rem' }}>
@@ -613,7 +669,7 @@ export const ResultsView = () => {
                     </div>
                   </div>
                   <div className="widget-chart" style={{ height: '230px' }}>
-                    <Bar data={createGlobalChartData(combinedLimaMetro)} options={chartOptions} />
+                    <Bar key={`bar-consolidado-${filterAnimKey}`} data={createGlobalChartData(combinedLimaMetro)} options={chartOptions} />
                   </div>
                 </div>
               </>
@@ -725,13 +781,13 @@ export const ResultsView = () => {
                             {p.candidatoDist}
                           </td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--accent)', fontWeight: 600 }}>
-                            {p.provVotes.toLocaleString()}
+                            {(p.provVotes || 0).toLocaleString()}
                           </td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--accent-purple)', fontWeight: 600 }}>
-                            {p.distVotes.toLocaleString()}
+                            {(p.distVotes || 0).toLocaleString()}
                           </td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--text)' }}>
-                            {p.totalParty.toLocaleString()}
+                            {(p.totalParty || 0).toLocaleString()}
                           </td>
                           <td style={{ padding: '8px 10px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -746,7 +802,7 @@ export const ResultsView = () => {
                               >
                                 <div
                                   style={{
-                                    width: `${Math.min(100, p.pct)}%`,
+                                    width: `${Math.min(100, Math.max(0, p.pct || 0))}%`,
                                     height: '100%',
                                     background: p.color,
                                     borderRadius: 3
@@ -754,7 +810,7 @@ export const ResultsView = () => {
                                 />
                               </div>
                               <span style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: '38px', color: 'var(--text2)' }}>
-                                {p.pct.toFixed(1)}%
+                                {(p.pct || 0).toFixed(1)}%
                               </span>
                             </div>
                           </td>

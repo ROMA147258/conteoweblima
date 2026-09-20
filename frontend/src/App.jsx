@@ -7,23 +7,26 @@ import { MapView } from './features/map/MapView';
 import { ComparisonView } from './features/comparison/ComparisonView';
 import { CoordinatorView } from './features/coordinators/CoordinatorView';
 import { AttendanceView } from './features/attendance/AttendanceView';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App = () => {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginView />} />
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginView />} />
+        <Route path="/" element={<LoginView />} />
 
-      <Route element={<MainLayout />}>
-        <Route path="/" element={<Navigate to="/results" replace />} />
-        <Route path="/results" element={<ResultsView />} />
-        <Route path="/map" element={<MapView />} />
-        <Route path="/comparison" element={<ComparisonView />} />
-        <Route path="/coordinators" element={<CoordinatorView />} />
-        <Route path="/attendance" element={<AttendanceView />} />
-      </Route>
+        <Route element={<MainLayout />}>
+          <Route path="/results" element={<ResultsView />} />
+          <Route path="/map" element={<MapView />} />
+          <Route path="/comparison" element={<ComparisonView />} />
+          <Route path="/coordinators" element={<CoordinatorView />} />
+          <Route path="/attendance" element={<AttendanceView />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </ErrorBoundary>
   );
 };
 

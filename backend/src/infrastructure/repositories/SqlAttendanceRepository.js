@@ -10,13 +10,13 @@ class SqlAttendanceRepository {
     const local = (filter.local || filter.colegio || '').trim();
 
     if (distrito && distrito.toUpperCase() !== 'TODOS' && distrito.toUpperCase() !== 'LIMA') {
-      whereConditions.push(`LOWER(TRIM(p.distrito)) = LOWER(TRIM($${paramIndex}))`);
+      whereConditions.push(`TRANSLATE(LOWER(TRIM(p.distrito)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU')`);
       params.push(distrito);
       paramIndex++;
     }
 
     if (local && local.toUpperCase() !== 'TODOS') {
-      whereConditions.push(`LOWER(TRIM(p.local)) = LOWER(TRIM($${paramIndex}))`);
+      whereConditions.push(`(TRANSLATE(LOWER(TRIM(p.local)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${paramIndex})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') OR p.local ILIKE '%' || $${paramIndex} || '%')`);
       params.push(local);
       paramIndex++;
     }

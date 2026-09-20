@@ -117,9 +117,40 @@ export const ComparisonView = () => {
     ]
   };
 
+  const filterAnimKey = `${filterA.level}_${filterA.location}_${filterA.origen}_${filterA.votoTipo}_${filterB.level}_${filterB.location}_${filterB.origen}_${filterB.votoTipo}`;
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 900,
+      easing: 'easeOutQuart',
+      delay: (ctx) => {
+        if (ctx.type === 'data' && ctx.mode === 'default') {
+          return (ctx.dataIndex || 0) * 40;
+        }
+        return 0;
+      }
+    },
+    animations: {
+      y: {
+        type: 'number',
+        easing: 'easeOutQuart',
+        duration: 900,
+        from: (ctx) => {
+          if (ctx.chart && ctx.chart.scales && ctx.chart.scales.y) {
+            return ctx.chart.scales.y.getPixelForValue(0);
+          }
+          return 0;
+        },
+        delay: (ctx) => {
+          if (ctx.type === 'data' && ctx.mode === 'default') {
+            return (ctx.dataIndex || 0) * 40;
+          }
+          return 0;
+        }
+      }
+    },
     plugins: {
       legend: {
         position: 'top',
@@ -408,7 +439,7 @@ export const ComparisonView = () => {
 
         {/* Gráfico Comparativo */}
         <div className="dash-widget" style={{ height: '320px', minHeight: '320px', marginBottom: '1.25rem' }}>
-          <Bar data={chartData} options={chartOptions} />
+          <Bar key={`bar-compare-${filterAnimKey}`} data={chartData} options={chartOptions} />
         </div>
 
         {/* Tabla Comparativa */}

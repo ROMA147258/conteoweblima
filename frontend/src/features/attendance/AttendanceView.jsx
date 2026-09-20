@@ -44,10 +44,11 @@ export const AttendanceView = () => {
     loadData();
   }, [filters.distrito, filters.colegio]);
 
+  const filterAnimKey = `${filters.distrito || ''}_${filters.colegio || ''}`;
+
   const kpis = data?.kpis || {
     totalPersonerosRegistrados: 0,
     primeraAsistencia: 0,
-    segundaAsistencia: 0,
     distritosConReporte: 0,
     enviosAmbos: 0,
     enviosSoloManual: 0,
@@ -58,12 +59,9 @@ export const AttendanceView = () => {
   const conf1 = data?.charts?.conf1Global?.confirmados || 0;
   const falt1 = data?.charts?.conf1Global?.faltantes || 0;
 
-  const conf2 = data?.charts?.conf2Global?.confirmados || 0;
-  const falt2 = data?.charts?.conf2Global?.faltantes || 0;
-
-  // Donut 1ª Asistencia (Apertura / Foto)
+  // Donut Asistencia Global
   const doughnut1Data = {
-    labels: ['Confirmados 1ª Asist.', 'Faltantes 1ª Asist.'],
+    labels: ['Asistencia Confirmada', 'Asistencia Pendiente'],
     datasets: [
       {
         data: [conf1, Math.max(0, falt1)],
@@ -73,13 +71,13 @@ export const AttendanceView = () => {
     ]
   };
 
-  // Bar 1ª Asistencia por Distrito
+  // Bar Asistencia por Distrito
   const distEntries1 = Object.entries(data?.charts?.conf1PorDistrito || {});
   const bar1Data = {
     labels: distEntries1.length > 0 ? distEntries1.map(([k]) => k) : ['Sin registros'],
     datasets: [
       {
-        label: '1ª Asistencia por distrito',
+        label: 'Personeros Asistieron',
         data: distEntries1.length > 0 ? distEntries1.map(([, v]) => v) : [0],
         backgroundColor: '#10b981',
         borderRadius: 4
@@ -87,25 +85,37 @@ export const AttendanceView = () => {
     ]
   };
 
-  // Donut 2ª Asistencia (Llegada con GPS)
+  // Donut Estado de Envíos de Actas Global
   const doughnut2Data = {
-    labels: ['Confirmados 2ª Asist.', 'Faltantes 2ª Asist.'],
+    labels: ['Completo (2/2)', 'Falta Foto (1/2)', 'Falta Manual (1/2)', 'Sin Envíos (0/2)'],
     datasets: [
       {
-        data: [conf2, Math.max(0, falt2)],
-        backgroundColor: ['#3b82f6', '#f59e0b'],
+        data: [
+          kpis.enviosAmbos || 0,
+          kpis.enviosSoloManual || 0,
+          kpis.enviosSoloImagen || 0,
+          kpis.sinEnvio || 0
+        ],
+        backgroundColor: ['#10b981', '#f59e0b', '#3b82f6', '#ef4444'],
         borderWidth: 0
       }
     ]
   };
 
-  // Bar 2ª Asistencia por Distrito
-  const distEntries2 = Object.entries(data?.charts?.conf2PorDistrito || {});
+  // Bar Envíos de Actas por Distrito
+  const enviosDistritos = {};
+  (data?.registros || []).forEach(r => {
+    const d = r.distrito || 'LIMA';
+    if (r.envioManual === 'ENVIADO' || r.envioImagen === 'ENVIADO') {
+      enviosDistritos[d] = (enviosDistritos[d] || 0) + 1;
+    }
+  });
+  const distEntries2 = Object.entries(enviosDistritos);
   const bar2Data = {
     labels: distEntries2.length > 0 ? distEntries2.map(([k]) => k) : ['Sin registros'],
     datasets: [
       {
-        label: '2ª Asistencia por distrito',
+        label: 'Personeros con Actas Enviadas',
         data: distEntries2.length > 0 ? distEntries2.map(([, v]) => v) : [0],
         backgroundColor: '#3b82f6',
         borderRadius: 4
@@ -116,6 +126,12 @@ export const AttendanceView = () => {
   const donutOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      animateRotate: true,
+      animateScale: true,
+      duration: 850,
+      easing: 'easeOutCirc'
+    },
     plugins: {
       legend: {
         position: 'bottom',
@@ -131,6 +147,35 @@ export const AttendanceView = () => {
   const barOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    animation: {
+      duration: 900,
+      easing: 'easeOutQuart',
+      delay: (ctx) => {
+        if (ctx.type === 'data' && ctx.mode === 'default') {
+          return (ctx.dataIndex || 0) * 40;
+        }
+        return 0;
+      }
+    },
+    animations: {
+      y: {
+        type: 'number',
+        easing: 'easeOutQuart',
+        duration: 900,
+        from: (ctx) => {
+          if (ctx.chart && ctx.chart.scales && ctx.chart.scales.y) {
+            return ctx.chart.scales.y.getPixelForValue(0);
+          }
+          return 0;
+        },
+        delay: (ctx) => {
+          if (ctx.type === 'data' && ctx.mode === 'default') {
+            return (ctx.dataIndex || 0) * 40;
+          }
+          return 0;
+        }
+      }
+    },
     plugins: {
       legend: { display: false }
     },
@@ -162,17 +207,14 @@ export const AttendanceView = () => {
     if (!matchSearch) return false;
 
     const isConf1 = p.confirmacion1 === 'CONFIRMADO' || p.confirmacion === 'SI';
-    const isConf2 = p.confirmacion2 === 'CONFIRMADO';
     const isMan = p.envioManual === 'ENVIADO';
     const isImg = p.envioImagen === 'ENVIADO';
 
     // 1. Filtro de Asistencia
     if (asistenciaFilter === 'conf1' && !isConf1) return false;
-    if (asistenciaFilter === 'conf2' && !isConf2) return false;
-    if (asistenciaFilter === 'ambas' && (!isConf1 || !isConf2)) return false;
-    if (asistenciaFilter === 'sin_asistencia' && (isConf1 || isConf2)) return false;
+    if (asistenciaFilter === 'sin_asistencia' && isConf1) return false;
 
-    // 2. Filtro de Envíos de Actas (Excluyentes y sin redundancia)
+    // 2. Filtro de Envíos de Actas
     if (enviosFilter === 'ambos' && (!isMan || !isImg)) return false;
     if (enviosFilter === 'solo_manual' && (!isMan || isImg)) return false;
     if (enviosFilter === 'solo_imagen' && (isMan || !isImg)) return false;
@@ -225,14 +267,14 @@ export const AttendanceView = () => {
         <div>
           <h1 className="view-title">👥 Monitoreo de Personeros, Asistencia y Envíos de Actas</h1>
           <p className="view-subtitle">
-            Control de 1ª/2ª Asistencia y estado de transmisión: <strong>Conteo Manual 📝</strong> e <strong>Imagen / OCR 📸</strong>
+            Control de Asistencia y estado de transmisión: <strong>Conteo Manual 📝</strong> e <strong>Imagen / OCR 📸</strong>
           </p>
         </div>
       </div>
 
       <div className="dashboard-scroll" style={{ overflowY: 'auto', flex: 1, padding: '0.875rem 1.25rem' }}>
-        {/* KPI Row (7 Tarjetas Informativas y Clicables sin Redundancia) */}
-        <div className="kpi-row-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '1.25rem' }}>
+        {/* KPI Row (6 Tarjetas Informativas y Clicables) */}
+        <div className="kpi-row-main" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.5rem', marginBottom: '1.25rem' }}>
           {/* 1. Total Personeros */}
           <div
             className="kpi-card-pro"
@@ -247,35 +289,21 @@ export const AttendanceView = () => {
             </div>
           </div>
 
-          {/* 2. 1ª Asistencia (Foto) */}
+          {/* 2. Asistencia Confirmada */}
           <div
             className="kpi-card-pro"
             style={{ '--kpi-color': '#059669', padding: '0.75rem 0.85rem', cursor: 'pointer', border: asistenciaFilter === 'conf1' ? '2px solid #059669' : '1px solid var(--border)', background: asistenciaFilter === 'conf1' ? 'rgba(5, 150, 105, 0.08)' : 'var(--surface)' }}
             onClick={() => { setAsistenciaFilter('conf1'); setEnviosFilter('todos'); }}
-            title="Filtrar personeros con 1ª Asistencia (Foto)"
+            title="Filtrar personeros con Asistencia Confirmada"
           >
             <span className="kpi-icon">🌅</span>
             <div className="kpi-meta">
               <span className="kpi-card-value" style={{ color: '#059669' }}>{kpis.primeraAsistencia.toLocaleString()}</span>
-              <span className="kpi-card-label">1ª ASIST. (FOTO)</span>
+              <span className="kpi-card-label">ASIST. CONFIRMADA</span>
             </div>
           </div>
 
-          {/* 3. 2ª Asistencia (GPS) */}
-          <div
-            className="kpi-card-pro"
-            style={{ '--kpi-color': '#0284c7', padding: '0.75rem 0.85rem', cursor: 'pointer', border: asistenciaFilter === 'conf2' ? '2px solid #0284c7' : '1px solid var(--border)', background: asistenciaFilter === 'conf2' ? 'rgba(2, 132, 199, 0.08)' : 'var(--surface)' }}
-            onClick={() => { setAsistenciaFilter('conf2'); setEnviosFilter('todos'); }}
-            title="Filtrar personeros con 2ª Asistencia (GPS)"
-          >
-            <span className="kpi-icon">📍</span>
-            <div className="kpi-meta">
-              <span className="kpi-card-value" style={{ color: '#0284c7' }}>{kpis.segundaAsistencia.toLocaleString()}</span>
-              <span className="kpi-card-label">2ª ASIST. (GPS)</span>
-            </div>
-          </div>
-
-          {/* 4. Envíos Completos (2/2) */}
+          {/* 3. Envíos Completos (2/2) */}
           <div
             className="kpi-card-pro"
             style={{ '--kpi-color': '#10b981', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'ambos' ? '2px solid #10b981' : '1px solid var(--border)', background: enviosFilter === 'ambos' ? 'rgba(16, 185, 129, 0.12)' : 'var(--surface)' }}
@@ -289,7 +317,7 @@ export const AttendanceView = () => {
             </div>
           </div>
 
-          {/* 5. Falta Foto (Solo Manual) */}
+          {/* 4. Falta Foto (Solo Manual) */}
           <div
             className="kpi-card-pro"
             style={{ '--kpi-color': '#f59e0b', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'solo_manual' ? '2px solid #f59e0b' : '1px solid var(--border)', background: enviosFilter === 'solo_manual' ? 'rgba(245, 158, 11, 0.12)' : 'var(--surface)' }}
@@ -303,7 +331,7 @@ export const AttendanceView = () => {
             </div>
           </div>
 
-          {/* 6. Falta Manual (Solo Foto) */}
+          {/* 5. Falta Manual (Solo Foto) */}
           <div
             className="kpi-card-pro"
             style={{ '--kpi-color': '#3b82f6', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'solo_imagen' ? '2px solid #3b82f6' : '1px solid var(--border)', background: enviosFilter === 'solo_imagen' ? 'rgba(59, 130, 246, 0.12)' : 'var(--surface)' }}
@@ -317,7 +345,7 @@ export const AttendanceView = () => {
             </div>
           </div>
 
-          {/* 7. Sin Envíos (0/2) */}
+          {/* 6. Sin Envíos (0/2) */}
           <div
             className="kpi-card-pro"
             style={{ '--kpi-color': '#ef4444', padding: '0.75rem 0.85rem', cursor: 'pointer', border: enviosFilter === 'sin_envio' ? '2px solid #ef4444' : '1px solid var(--border)', background: enviosFilter === 'sin_envio' ? 'rgba(239, 68, 68, 0.12)' : 'var(--surface)' }}
@@ -334,55 +362,55 @@ export const AttendanceView = () => {
 
         {/* Grilla Simétrica de 4 Gráficos */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          {/* 1. 1ª Conf. Global (Foto) */}
+          {/* 1. Asistencia Global */}
           <div className="dash-widget" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
             <div className="widget-header" style={{ paddingBottom: '0.4rem' }}>
               <div>
-                <h3 className="widget-title" style={{ color: '#10b981', fontSize: '0.85rem' }}>🌅 1ª Conf. Global</h3>
-                <p className="widget-subtitle">Confirmación con Foto</p>
+                <h3 className="widget-title" style={{ color: '#10b981', fontSize: '0.85rem' }}>🌅 Asistencia Global</h3>
+                <p className="widget-subtitle">Confirmación de presencia</p>
               </div>
             </div>
             <div className="widget-chart" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '0.25rem' }}>
-              <Doughnut data={doughnut1Data} options={donutOptions} />
+              <Doughnut key={`donut-asist-${filterAnimKey}`} data={doughnut1Data} options={donutOptions} />
             </div>
           </div>
 
-          {/* 2. 1ª por Distrito */}
+          {/* 2. Asistencia por Distrito */}
           <div className="dash-widget" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
             <div className="widget-header" style={{ paddingBottom: '0.4rem' }}>
               <div>
-                <h3 className="widget-title" style={{ fontSize: '0.85rem' }}>🌅 1ª por Distrito</h3>
-                <p className="widget-subtitle">Fotos recibidas</p>
+                <h3 className="widget-title" style={{ fontSize: '0.85rem' }}>🌅 Asistencia por Distrito</h3>
+                <p className="widget-subtitle">Personeros confirmados</p>
               </div>
             </div>
             <div className="widget-chart" style={{ flex: 1, minHeight: 0, padding: '0.25rem' }}>
-              <Bar data={bar1Data} options={barOptions} />
+              <Bar key={`bar-asist-${filterAnimKey}`} data={bar1Data} options={barOptions} />
             </div>
           </div>
 
-          {/* 3. 2ª Conf. Global (GPS) */}
+          {/* 3. Estado de Transmisión de Actas */}
           <div className="dash-widget" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
             <div className="widget-header" style={{ paddingBottom: '0.4rem' }}>
               <div>
-                <h3 className="widget-title" style={{ color: '#3b82f6', fontSize: '0.85rem' }}>📍 2ª Conf. Global</h3>
-                <p className="widget-subtitle">Llegada con GPS</p>
+                <h3 className="widget-title" style={{ color: '#3b82f6', fontSize: '0.85rem' }}>📦 Estado Global de Actas</h3>
+                <p className="widget-subtitle">Distribución de transmisión</p>
               </div>
             </div>
             <div className="widget-chart" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 0, padding: '0.25rem' }}>
-              <Doughnut data={doughnut2Data} options={donutOptions} />
+              <Doughnut key={`donut-envios-${filterAnimKey}`} data={doughnut2Data} options={donutOptions} />
             </div>
           </div>
 
-          {/* 4. 2ª por Distrito */}
+          {/* 4. Envíos de Actas por Distrito */}
           <div className="dash-widget" style={{ height: '240px', display: 'flex', flexDirection: 'column' }}>
             <div className="widget-header" style={{ paddingBottom: '0.4rem' }}>
               <div>
-                <h3 className="widget-title" style={{ fontSize: '0.85rem' }}>📍 2ª por Distrito</h3>
-                <p className="widget-subtitle">Llegadas GPS por distrito</p>
+                <h3 className="widget-title" style={{ fontSize: '0.85rem' }}>📊 Actas Transmitidas por Distrito</h3>
+                <p className="widget-subtitle">Personeros que reportaron</p>
               </div>
             </div>
             <div className="widget-chart" style={{ flex: 1, minHeight: 0, padding: '0.25rem' }}>
-              <Bar data={bar2Data} options={barOptions} />
+              <Bar key={`bar-envios-${filterAnimKey}`} data={bar2Data} options={barOptions} />
             </div>
           </div>
         </div>
@@ -395,7 +423,7 @@ export const AttendanceView = () => {
                 📋 Detalle de Personeros: Asistencia y Envíos de Actas ({filteredPersoneros.length})
               </h3>
               <p style={{ fontSize: '0.75rem', color: 'var(--text3)', margin: 0 }}>
-                Seguimiento en vivo: Asistencia (Foto/GPS) + Envío Manual 📝 + Envío Imagen 📸
+                Seguimiento en vivo: Asistencia + Envío Manual 📝 + Envío Imagen 📸
               </p>
             </div>
 
@@ -432,13 +460,11 @@ export const AttendanceView = () => {
                 title="Filtrar por estado de asistencia"
               >
                 <option value="todos">📋 Asistencia: Todos</option>
-                <option value="conf1">🌅 1ª Conf. (Foto)</option>
-                <option value="conf2">📍 2ª Conf. (GPS)</option>
-                <option value="ambas">✅ Ambas Confirmadas (Foto + GPS)</option>
-                <option value="sin_asistencia">⏳ Sin Asistencia (Pendiente)</option>
+                <option value="conf1">✅ Asistencia Confirmada</option>
+                <option value="sin_asistencia">⏳ Asistencia Pendiente</option>
               </select>
 
-              {/* Filtro 2: Envíos de Actas (Sin Redundancia) */}
+              {/* Filtro 2: Envíos de Actas */}
               <select
                 value={enviosFilter}
                 onChange={(e) => setEnviosFilter(e.target.value)}
@@ -491,8 +517,7 @@ export const AttendanceView = () => {
                   <th style={{ padding: '8px 10px' }}>DNI / Celular</th>
                   <th style={{ padding: '8px 10px' }}>Distrito / Local</th>
                   <th style={{ padding: '8px 10px', textAlign: 'center' }}>Mesa</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>1ª Conf. (Foto)</th>
-                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>2ª Conf. (GPS)</th>
+                  <th style={{ padding: '8px 10px', textAlign: 'center' }}>📸 Asistencia</th>
                   <th style={{ padding: '8px 10px', textAlign: 'center', background: 'rgba(245, 158, 11, 0.08)' }}>Envío Manual 📝</th>
                   <th style={{ padding: '8px 10px', textAlign: 'center', background: 'rgba(59, 130, 246, 0.08)' }}>Envío Imagen 📸</th>
                   <th style={{ padding: '8px 10px', textAlign: 'center' }}>Estado Envíos</th>
@@ -502,14 +527,13 @@ export const AttendanceView = () => {
               <tbody>
                 {filteredPersoneros.length === 0 ? (
                   <tr>
-                    <td colSpan="10" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text3)' }}>
+                    <td colSpan="9" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text3)' }}>
                       No se encontraron personeros con los filtros seleccionados.
                     </td>
                   </tr>
                 ) : (
                   filteredPersoneros.map((p, idx) => {
                     const isConf1 = p.confirmacion1 === 'CONFIRMADO' || p.confirmacion === 'SI';
-                    const isConf2 = p.confirmacion2 === 'CONFIRMADO';
                     const isMan = p.envioManual === 'ENVIADO';
                     const isImg = p.envioImagen === 'ENVIADO';
 
@@ -541,7 +565,7 @@ export const AttendanceView = () => {
                           {p.mesa || '—'}
                         </td>
 
-                        {/* 1ª Conf (Foto) */}
+                        {/* Asistencia */}
                         <td style={{ padding: '8px 10px', textAlign: 'center' }}>
                           {isConf1 ? (
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -578,27 +602,7 @@ export const AttendanceView = () => {
                           )}
                         </td>
 
-                        {/* 2ª Conf (GPS) */}
-                        <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                          {isConf2 ? (
-                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                              <span style={{ background: '#3b82f6', color: '#fff', padding: '2px 7px', borderRadius: '12px', fontSize: '0.68rem', fontWeight: 700 }}>
-                                📍 LLEGÓ (GPS)
-                              </span>
-                              {p.fechaHora2 && (
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text3)' }}>
-                                  {formatHora(p.fechaHora2)}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '2px 7px', borderRadius: '12px', fontSize: '0.68rem', fontWeight: 600 }}>
-                              ⏳ PENDIENTE
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Envío Manual 📝 (Al costado de 2ª Confirmación) */}
+                        {/* Envío Manual 📝 */}
                         <td style={{ padding: '8px 10px', textAlign: 'center', background: 'rgba(245, 158, 11, 0.03)' }}>
                           {isMan ? (
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -623,7 +627,7 @@ export const AttendanceView = () => {
                           )}
                         </td>
 
-                        {/* Envío Imagen 📸 (Al costado de Envío Manual) */}
+                        {/* Envío Imagen 📸 */}
                         <td style={{ padding: '8px 10px', textAlign: 'center', background: 'rgba(59, 130, 246, 0.03)' }}>
                           {isImg ? (
                             <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>

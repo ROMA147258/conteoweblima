@@ -1,20 +1,34 @@
-import * as XLSX from 'xlsx';
+import writeXlsxFile from 'write-excel-file/browser';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 
 export const exportUtils = {
-  exportExcel(data, fileName = 'resultados_votoreal.xlsx') {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Resultados');
-    XLSX.writeFile(wb, fileName);
+  async exportExcel(data, fileName = 'resultados_votoreal.xlsx') {
+    if (!data || !data.length) return;
+    const keys = Object.keys(data[0]);
+    const schema = keys.map(key => ({
+      column: key,
+      type: String,
+      value: row => (row[key] !== undefined && row[key] !== null ? String(row[key]) : '')
+    }));
+
+    await writeXlsxFile(data, {
+      schema,
+      fileName
+    });
   },
 
   exportCSV(data, fileName = 'resultados_votoreal.csv') {
-    const ws = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(ws);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    if (!data || !data.length) return;
+    const keys = Object.keys(data[0]);
+    const header = keys.map(k => `"${String(k).replace(/"/g, '""')}"`).join(',');
+    const rows = data.map(row =>
+      keys.map(k => `"${String(row[k] ?? '').replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+
+    const csvContent = '\uFEFF' + header + '\n' + rows;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = fileName;

@@ -10,13 +10,13 @@ class SqlCoordinatorsRepository {
     const colegio = (filter.colegio || filter.local || '').trim();
 
     if (distrito && distrito.toUpperCase() !== 'TODOS' && distrito.toUpperCase() !== 'LIMA') {
-      whereConditions.push(`LOWER(TRIM(c.distrito)) = LOWER(TRIM($${pIdx}))`);
+      whereConditions.push(`TRANSLATE(LOWER(TRIM(c.distrito)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${pIdx})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU')`);
       params.push(distrito);
       pIdx++;
     }
 
     if (colegio && colegio.toUpperCase() !== 'TODOS') {
-      whereConditions.push(`LOWER(TRIM(c.local)) ILIKE '%' || LOWER(TRIM($${pIdx})) || '%'`);
+      whereConditions.push(`(TRANSLATE(LOWER(TRIM(c.local)), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') = TRANSLATE(LOWER(TRIM($${pIdx})), 'áéíóúÁÉÍÓÚüÜ', 'aeiouAEIOUuU') OR c.local ILIKE '%' || $${pIdx} || '%')`);
       params.push(colegio);
       pIdx++;
     }
