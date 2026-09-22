@@ -7,6 +7,8 @@ const corsMiddleware = require('./interfaces/middleware/corsMiddleware');
 const errorHandler = require('./interfaces/middleware/errorHandler');
 const createApiRouter = require('./interfaces/routes');
 const { getPool } = require('./infrastructure/database/postgresPool');
+const telemetry = require('./infrastructure/config/telemetry');
+const alertService = require('./infrastructure/services/AlertNotificationService');
 
 const app = express();
 
@@ -23,6 +25,14 @@ app.use(helmet({
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  handler: (req, res, next, options) => {
+    alertService.notifySecurityIncident('BLOQUEO_FUERZA_BRUTA_LOGIN', {
+      ip: req.ip,
+      path: req.originalUrl,
+      headers: req.headers['user-agent']
+    }).catch(() => {});
+    res.status(options.statusCode).json(options.message);
+  },
   message: {
     success: false,
     message: 'Demasiados intentos de acceso fallidos. Por seguridad, intente de nuevo en 15 minutos.'
@@ -90,12 +100,16 @@ const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`📡  Puerto: ${config.port}`);
   console.log(`🌍  Endpoint Base: http://localhost:${config.port}/api`);
   console.log(`❤️   Health Check:  http://localhost:${config.port}/api/health`);
+  console.log(`📧  Alertas Activas: ${config.alert.recipient}`);
+  console.log(`📊  Telemetría:    Activa [${telemetry.serviceName}]`);
   console.log('======================================================\n');
 
   try {
     getPool();
+    alertService.notifyServerStartup(config.port, 'CONNECTED').catch(() => {});
   } catch (e) {
     console.warn('⚠️  Nota: Conexión a PostgreSQL falló. Se reintentará en cada solicitud.');
+    alertService.notifyDatabaseError(e).catch(() => {});
   }
 });
 

@@ -5,7 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node src/server.js"
+    "dev": "node src/server.js",
+    "verify:signature": "node scripts/verify_signature.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

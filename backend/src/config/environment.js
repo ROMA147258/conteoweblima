@@ -21,6 +21,16 @@ const environment = {
     adminUser: process.env.ADMIN_USER,
     adminPass: process.env.ADMIN_PASS,
     jwtSecret: process.env.JWT_SECRET
+  },
+
+  alert: {
+    recipient: process.env.ALERT_RECIPIENT_EMAIL || 'ricardo27romax@outlook.com',
+    enabled: process.env.ALERT_ENABLED !== 'false',
+    smtpHost: process.env.SMTP_HOST,
+    smtpPort: parseInt(process.env.SMTP_PORT, 10) || 587,
+    smtpUser: process.env.SMTP_USER,
+    smtpPass: process.env.SMTP_PASS,
+    smtpSecure: process.env.SMTP_SECURE === 'true'
   }
 };
 

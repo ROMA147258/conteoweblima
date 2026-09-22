@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { FilterProvider } from './context/FilterContext';
 import App from './App';
+import './utils/systemConfig';
 import 'leaflet/dist/leaflet.css';
 import './styles/index.css';
 
