@@ -10,7 +10,7 @@ export const LoginView = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const { login } = useAuth();
+  const { login, logoutReason } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
@@ -62,6 +62,25 @@ export const LoginView = () => {
         </div>
 
         <h2 className="login-title">Acceso de Administrador</h2>
+
+        {logoutReason && (
+          <div style={{
+            background: 'rgba(234, 179, 8, 0.12)',
+            border: '1px solid rgba(234, 179, 8, 0.4)',
+            borderRadius: '8px',
+            padding: '0.65rem 0.85rem',
+            marginBottom: '1rem',
+            fontSize: '0.78rem',
+            color: 'var(--text)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            lineHeight: '1.3'
+          }}>
+            <span>🔒</span>
+            <span><strong>Sesión protegida:</strong> Cerrada automáticamente por {logoutReason}.</span>
+          </div>
+        )}
 
         {error && (
           <div className="login-error">

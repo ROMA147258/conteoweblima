@@ -4,6 +4,23 @@ import apiClient from '../services/apiClient';
 
 const FilterContext = createContext(null);
 
+const LOCATIONS_CACHE_KEY = 'votoreal_locations_cache';
+const LOCATIONS_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 horas
+
+// Obtener datos iniciales desde caché de localStorage para 0 ms y 0 peticiones de red
+const getInitialLocationsData = () => {
+  try {
+    const cached = localStorage.getItem(LOCATIONS_CACHE_KEY);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.data && (Date.now() - (parsed.timestamp || 0) < LOCATIONS_CACHE_TTL)) {
+        return parsed.data;
+      }
+    }
+  } catch (_) {}
+  return null;
+};
+
 export const FilterProvider = ({ children }) => {
   const [filters, setFilters] = useState({
     departamento: 'Lima',
@@ -15,17 +32,28 @@ export const FilterProvider = ({ children }) => {
     origen: ''
   });
 
-  const [locationsData, setLocationsData] = useState(null);
+  const [locationsData, setLocationsData] = useState(getInitialLocationsData);
   const [availableSchools, setAvailableSchools] = useState([]);
   const [availableMesas, setAvailableMesas] = useState([]);
 
-  // Cargar provincias, distritos y colegios sincronizados desde la BD
+  // Cargar provincias, distritos y 2,214 colegios sincronizados con caché local
   useEffect(() => {
     async function loadAllLocations() {
+      // Si ya tenemos datos válidos en localStorage, no transferimos megabytes repetidos
+      const cached = getInitialLocationsData();
+      if (cached && locationsData) {
+        return;
+      }
+
       try {
         const res = await apiClient.get('/locations');
         if (res.success && res.data) {
           setLocationsData(res.data);
+          // Guardar en la memoria interna del teléfono (localStorage Cache)
+          localStorage.setItem(LOCATIONS_CACHE_KEY, JSON.stringify({
+            data: res.data,
+            timestamp: Date.now()
+          }));
         }
       } catch (_) {}
     }

@@ -17,6 +17,14 @@ class ApiClient {
   }
 
   async request(endpoint, options = {}) {
+    // Congelación a 0 Bytes en Segundo Plano:
+    // Si la pantalla está bloqueada, minimizada o en otra app, se detiene el tráfico al 100%.
+    // Solo se permite la llamada de logout si es necesaria.
+    if (typeof document !== 'undefined' && document.hidden && !endpoint.includes('/auth/')) {
+      console.warn(`[Seguridad Banco - 0 Bytes] Petición bloqueada en segundo plano: ${endpoint}`);
+      throw new Error('Tráfico congelado en segundo plano (ahorro de datos y seguridad)');
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
     const config = {
       ...options,
