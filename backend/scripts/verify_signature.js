@@ -24,10 +24,10 @@ const ZW_CHARS = {
  */
 function encodeSteganography(metadata = {}) {
   const metaBase = {
-    author: metadata.author || 'Leonel R. / ROMA147258',
-    project: metadata.project || 'Sistema de Conteo y Verificacion Electoral - Lima',
+    author: metadata.author || 'Ricardo Alonso Rodriguez Malaver / 74909613 / conteovotosweblima',
+    project: metadata.project || 'Sistema de Conteo y Verificacion Electoral - Lima / conteovotosweblima',
     license: metadata.license || 'Proprietary - All Rights Reserved',
-    timestamp: metadata.timestamp || '2026-09-22T19:00:00.000Z'
+    timestamp: metadata.timestamp || '2026-09-28T02:00:00.000Z'
   };
 
   const hash = crypto

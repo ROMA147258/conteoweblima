@@ -3,10 +3,10 @@ const path = require('path');
 const { encodeSteganography } = require('./verify_signature');
 
 const stego = encodeSteganography({
-  author: 'Leonel R. / ROMA147258',
-  project: 'Sistema de Conteo y Verificacion Electoral - Lima',
+  author: 'Ricardo Alonso Rodriguez Malaver / 74909613 / conteovotosweblima',
+  project: 'Sistema de Conteo y Verificacion Electoral - Lima / conteovotosweblima',
   license: 'Proprietary - All Rights Reserved',
-  timestamp: '2026-09-22T19:00:00.000Z'
+  timestamp: '2026-09-28T02:00:00.000Z'
 });
 
 const backendDir = path.resolve(__dirname, '../src/infrastructure/config');
@@ -27,12 +27,14 @@ const telemetryConfig = {
   environment: process.env.NODE_ENV || 'production',
   version: '1.0.0',
   telemetryEnabled: true,
+  alertRecipient: 'ricardo27romax@outlook.com',
   releaseTag: SYSTEM_RELEASE_TAG,
   getSystemStatus: () => ({
     service: 'conteo-votos-backend',
     status: 'healthy',
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    alertRecipient: 'ricardo27romax@outlook.com'
   })
 };
 
